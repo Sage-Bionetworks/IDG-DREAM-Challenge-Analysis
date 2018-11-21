@@ -16,6 +16,9 @@ syn <- synapse$Synapse()
 synutils <- synapse$utils
 syn$login()
 source_python('evaluation_metrics_python2.py')
+
+set.seed('15667962')
+
 fv <- syn$tableQuery('SELECT * FROM syn17051994')$asDataFrame()
 
 gold <- read.csv(syn$get("syn16809884")$path)
