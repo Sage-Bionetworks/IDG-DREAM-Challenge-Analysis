@@ -1,0 +1,373 @@
+---
+title: "IDG-DREAM Round 1"
+author: "Robert Allaway"
+date: "11/20/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(plotly)
+library(reticulate)
+library(pbapply)
+use_python("/usr/local/bin/python2")
+synapse <- import("synapseclient")
+syn <- synapse$Synapse()
+synutils <- synapse$utils
+syn$login()
+source_python('evaluation_metrics_python2.py')
+fv <- syn$tableQuery('SELECT * FROM syn17051994')$asDataFrame()
+
+gold <- read.csv(syn$get("syn16809884")$path)
+
+leaderboard <- syn$tableQuery('SELECT * FROM syn17054253')$asDataFrame() %>% 
+  mutate(userId = as.character(userId))
+
+names <- sapply(as.character(unique(leaderboard$userId)), function(x){
+  foo<- syn$getUserProfile(x)
+  name<- synutils$extract_user_name(foo)
+}) %>% as.data.frame() %>% set_names("userName") %>% rownames_to_column("userId")
+
+leaderboard <- leaderboard %>% left_join(names)
+```
+
+####This script takes the Round 1 IDG-DREAM results and performs the following steps:
+
+-Basic submission stats
+-Rescoring the results using reticulate connection to scoring harness python script 
+-Plotting the rescored results to ensure they are in line with final leaderboard
+-Bootstrap evaluation of the predictions - resampling with replacement - to assess stability of results for all six metrics.
+
+##Basic Submission Stats
+
+####Round 1 had 170 total submissions from 78 different Synapse Users and 30 teams. 
+
+####Number of submissions in Round 1 summary and by submitter:
+```{r}
+table(leaderboard$userName) %>% as.data.frame() %>% arrange(-Freq) %>% count(Freq)
+
+library(DT)
+DT::datatable(table(leaderboard$userName) %>% as.data.frame() %>% arrange(-Freq))
+
+```
+###Histograms of scores
+
+```{r}
+
+ggplot(leaderboard)+
+  geom_histogram(aes(x=pearson), binwidth = 0.01)
+ggplot(leaderboard)+
+  geom_histogram(aes(x=spearman), binwidth = 0.01)
+ggplot(leaderboard)+
+  geom_histogram(aes(x=log(rmse)), binwidth = 0.01)
+ggplot(leaderboard)+
+  geom_histogram(aes(x=ci), binwidth = 0.01)
+ggplot(leaderboard)+
+  geom_histogram(aes(x=f1), binwidth = 0.01)
+ggplot(leaderboard)+
+  geom_histogram(aes(x=average_AUC), binwidth = 0.01)
+
+```
+
+
+
+##Local rescoring validation
+#### All six rescored metrics using this script match those from the final leaderboard. There are a couple of scores that are very slightly different - this is likely due to different library versions than scoring harness. I am not considering this as an important difference for this preliminary analysis. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+score <- function(x){
+  bar <- x
+  pd.df <- r_to_py(bar)
+  pred <- np_array(bar$pKd_.M._pred)
+  gs <- np_array(bar$pKd_.M.)
+    
+  ci.s <- ci(gs,pred)
+  f1.s <- f1(pd.df$pKd_.M., pd.df$pKd_.M._pred)
+  pe.s <- pearson(gs,pred)
+  sp.s <- spearman(gs,pred)
+  rm.s <- rmse(gs,pred)
+  auc.s <- average_AUC(pd.df$pKd_.M., pd.df$pKd_.M._pred)
+  
+  return(c(ci.s,f1.s,pe.s,sp.s,rm.s,auc.s))
+}
+
+score_test <- pbapply(fv, 1, function(x){
+
+  foo <- read.csv(syn$get(x['id'])$path) %>% 
+    left_join(gold)
+  
+  bar <- replicate(1, score(foo)) %>% t() %>% 
+    as_data_frame() %>% 
+    set_names(c("ci", "f1", "pe", "sp", "rm", "auc")) %>% 
+    add_column('submissionId' = x['submissionId'])
+   
+  bar 
+})
+
+res <- bind_rows(score_test) %>% 
+  set_names(c("ci_rs", "f1_rs", "pe_rs", "sp_rs", "rm_rs", "auc_rs", "submissionId")) %>%
+  mutate(submissionId = as.numeric(as.character(submissionId))) %>% 
+  left_join(fv) %>% 
+  mutate(objectId=submissionId) %>% 
+  mutate(userId=as.character(userId)) %>% 
+  left_join(leaderboard)
+
+ggplot(res) +
+  geom_point(aes(x=spearman, y=sp_rs)) +
+  labs(x = 'Final Leaderboard Spearman Corr.', y = "Spearman from this script")+  
+  theme_minimal()
+
+
+ggplot(res) +
+  geom_point(aes(x=pearson, y=pe_rs)) +
+  labs(x = 'Final Leaderboard Pearson Corr.', y = "Pearson from this script")+  
+  theme_minimal()
+
+
+ggplot(res) +
+  geom_point(aes(x=rmse, y=rm_rs)) +
+  scale_x_log10()+
+  scale_y_log10() +
+  labs(x = 'Final Leaderboard RMSE', y = "RMSE from this script")+  
+  theme_minimal()
+
+ggplot(res) +
+  geom_point(aes(x=ci, y=ci_rs)) + 
+  labs(x = 'Final Leaderboard CI', y = "CI from this script") +
+  theme_minimal()
+
+
+ggplot(res) +
+  geom_point(aes(x=f1, y=f1_rs))+ 
+  labs(x = 'Final Leaderboard F1', y = "F1 from this script")+  
+  theme_minimal()
+
+  
+ggplot(res) +
+  geom_point(aes(x=average_AUC, y=auc_rs)) +
+  labs(x = 'Final Leaderboard average AUC', y = "Average AUC from this script")+  
+  theme_minimal()
+
+```
+
+##Bootstrapping
+To bootstrap a given prediction file this script: randomly samples 430 times from prediction file. 
+Compute the 6 metrics for those random predictoins
+Repeat 20x per prediction file to generate a distribution of bootstrapped scores per prediction file. 
+I then plotted the top 20 predictions for each metric using the leaderboard value, superimposed on the distribution of the bootstrapped prediction. Bars are ranked best to worst performer (based on single leaderboard value). Diamonds are the actual leaderboard value. 
+
+###Spearman Correlation
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+sample_with_replacement <- function(x){
+  
+  bar <- sample_frac(x,1,replace = T)
+
+  pd.df <- r_to_py(bar)
+  pred <- np_array(bar$pKd_.M._pred)
+  gs <- np_array(bar$pKd_.M.)
+    
+  ci.s <- ci(gs,pred)
+  f1.s <- f1(pd.df$pKd_.M., pd.df$pKd_.M._pred)
+  pe.s <- pearson(gs,pred)
+  sp.s <- spearman(gs,pred)
+  rm.s <- rmse(gs,pred)
+  auc.s <- average_AUC(pd.df$pKd_.M., pd.df$pKd_.M._pred)
+  
+  return(c(ci.s,f1.s,pe.s,sp.s,rm.s,auc.s))
+}
+
+temp <- pbapply(fv, 1, function(x){
+
+  foo <- read.csv(syn$get(x['id'])$path) %>% 
+    left_join(gold)
+  
+  bar <- replicate(20, sample_with_replacement(foo)) %>% t() %>% 
+    as_data_frame() %>% 
+    set_names(c("ci", "f1", "pe", "sp", "rm", "auc")) %>% 
+    add_column('rep_n'=c(1:20)) %>% 
+    add_column('submissionId' = x['submissionId'])
+   
+  bar 
+})
+
+res <- bind_rows(temp) %>% 
+  set_names(c("ci_bs", "f1_bs", "pe_bs", "sp_bs", "rm_bs", "auc_bs", "rep_n", "submissionId")) %>%
+  mutate(submissionId = as.numeric(as.character(submissionId))) %>% 
+  left_join(fv) %>% 
+  mutate(objectId=submissionId) %>% 
+  mutate(userId = as.character(userId)) %>% 
+  left_join(leaderboard) %>% 
+  mutate(label = paste(objectId, userName, sep = "_"))
+
+res[res=="NaN"]<-NA
+
+res$label <- factor(res$label, levels = unique(res$label[order(res$spearman)]))
+
+p<-ggplot(res %>% filter(!is.na(spearman)) %>% top_n(400, spearman)) +
+  geom_boxplot(aes(x=label, y=sp_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=spearman, fill=spearman, color = spearman), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped Spearman") +
+  theme_minimal()
+
+ggplotly(p)
+
+```
+
+###Pearson Correlation
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(res$pearson)]))
+
+p<-ggplot(res %>% filter(!is.na(pearson)) %>% top_n(400, pearson)) +
+  geom_boxplot(aes(x=label, y=pe_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=pearson, fill=pearson, color = pearson), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped Pearson") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+###RMSE
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(-res$rmse)]))
+
+p<-ggplot(res %>% filter(!is.na(rmse)) %>% top_n(400, -rmse)) +
+  geom_boxplot(aes(x=label, y=rm_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=rmse, fill=-rmse, color = -rmse), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped RMSE") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+###CI
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(res$ci)]))
+
+p<-ggplot(res %>% filter(!is.na(ci)) %>% top_n(400, ci)) +
+  geom_boxplot(aes(x=label, y=ci_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=ci, fill=ci, color = ci), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped CI") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+###F1
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(res$f1)]))
+
+p<-ggplot(res %>% filter(!is.na(f1)) %>% top_n(400, f1)) +
+  geom_boxplot(aes(x=label, y=f1_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=f1, fill=f1, color = f1), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped F1") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+###Average AUC
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(res$average_AUC)]))
+
+p<-ggplot(res %>% filter(!is.na(average_AUC)) %>% top_n(400, average_AUC)) +
+  geom_boxplot(aes(x=label, y=auc_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=average_AUC, fill=average_AUC, color = average_AUC), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped average_AUC") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+
+###Spearman Correlation - all samples
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(res$spearman)]))
+
+
+p<-ggplot(res %>% filter(!is.na(spearman))) +
+  geom_boxplot(aes(x=label, y=sp_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=spearman, fill=spearman, color = spearman), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped Spearman") +
+  theme_minimal()
+
+ggplotly(p)
+
+```
+
+###Pearson Correlation - all samples
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(res$pearson)]))
+
+p<-ggplot(res %>% filter(!is.na(pearson))) +
+  geom_boxplot(aes(x=label, y=pe_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=pearson, fill=pearson, color = pearson), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped Pearson") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+###RMSE - all samples
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(-res$rmse)]))
+
+p<-ggplot(res %>% filter(!is.na(rmse))) +
+  geom_boxplot(aes(x=label, y=rm_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=rmse, fill=-rmse, color = -rmse), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped RMSE") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+###CI - all samples
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(res$ci)]))
+
+p<-ggplot(res %>% filter(!is.na(ci))) +
+  geom_boxplot(aes(x=label, y=ci_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=ci, fill=ci, color = ci), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped CI") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+###F1 - all samples
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(res$f1)]))
+
+p<-ggplot(res %>% filter(!is.na(f1))) +
+  geom_boxplot(aes(x=label, y=f1_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=f1, fill=f1, color = f1), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped F1") +
+  theme_minimal()
+
+ggplotly(p)
+```
+
+###Average AUC - all samples
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+res$label <- factor(res$label, levels = unique(res$label[order(res$average_AUC)]))
+
+p<-ggplot(res %>% filter(!is.na(average_AUC))) +
+  geom_boxplot(aes(x=label, y=auc_bs), fill = "#FFFFFF") +
+  geom_point(aes(x=label, y=average_AUC, fill=average_AUC, color = average_AUC), shape = "23") +
+  coord_flip() +
+  labs(x = "Submission & User", y = "bootstrapped average_AUC") +
+  theme_minimal()
+
+ggplotly(p)
+```
