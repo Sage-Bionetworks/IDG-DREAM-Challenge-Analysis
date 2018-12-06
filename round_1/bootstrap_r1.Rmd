@@ -1,0 +1,407 @@
+---
+title: "IDG-DREAM Round 1 Bootstrap Analysis"
+author: "Robert Allaway"
+date: "12/03/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(reticulate)
+library(pbapply)
+use_python("/usr/local/bin/python2")
+synapse <- import("synapseclient")
+syn <- synapse$Synapse()
+synutils <- synapse$utils
+syn$login()
+source_python('evaluation_metrics_python2.py')
+
+seed<-15667962
+set.seed(seed)
+
+fv <- syn$tableQuery('SELECT * FROM syn17051994')$asDataFrame()
+
+gold <- read.csv(syn$get("syn16809884")$path)
+
+leaderboard <- syn$tableQuery('SELECT * FROM syn17054253')$asDataFrame() %>% 
+  mutate(userId = as.character(userId))
+
+names <- sapply(as.character(unique(leaderboard$userId)), function(x){
+  foo<- syn$getUserProfile(x)
+  name<- synutils$extract_user_name(foo)
+}) %>% as.data.frame() %>% set_names("userName") %>% rownames_to_column("userId")
+
+leaderboard <- leaderboard %>% left_join(names)
+```
+
+####This script takes the Round 1 IDG-DREAM results and performs the following steps:
+-Bootstrap evaluation of the predictions - paired resampling with replacement - to assess stability of results for all six metrics.
+
+The bootstrapping takes a while, so if rerunning this Rmd please be aware of that. 
+
+##Bootstrapping
+To bootstrap a given prediction file this script: randomly samples 430 times from prediction file. 
+Compute 3 metrics for those random predictions: 
+  Spearman correlation (metric 1)
+  RMSE (metric 2)
+  Average AUC - tiebreaker for metrics 1,2 
+
+
+Repeat 10000x per prediction file to generate a distribution of bootstrapped scores per prediction file. 
+I then plotted the top 20 predictions for each metric using the leaderboard value, superimposed on the distribution of the bootstrapped prediction. Bars are ranked best to worst performer (based on single leaderboard value). Orange circles are the actual leaderboard value. 
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+####################################################################
+## General Post Challenge Utils for 
+## January 2018  
+## Andrew Lamb / Mike Mason (mainly Andrew)
+####################################################################
+
+library(plyr)
+library(doMC)
+
+# gs = gold standard (truth data) from validatoin, predictions = team 
+# predictions, both assume each row is a sample, columns in gs could be multiple 
+# this for scoreing like a binary value and its prethresholded value "time to 
+# event", "event flag" 
+# IMPORTANT THAT GS AND PREDICTIONS ARE IN SAME ORDER
+# returns a vector of metric in order of teams
+bootstrappingMetric <- function(goldStandardMatrix, predictionsMatrix, scoreFun, N = 1000, seed = seed, doParallel = T, ...) # N = number of samplings
+{ 
+
+    # matrix, columns are boostraps, rows are samples
+    bsIndexMatrix <- matrix(1:nrow(goldStandardMatrix), nrow(goldStandardMatrix), N)
+    bsIndexMatrix <- t(aaply(bsIndexMatrix, 2, sample, replace = T))# bootstrap indices
+    
+    registerDoMC(cores = detectCores()-1)
+    gc()
+    
+    bsMetric   <- alply(.data     = bsIndexMatrix, 
+                        .margins  = 2, 
+                        .fun      = scoreFun, 
+                        .parallel = doParallel, 
+                        goldStandardMatrix, 
+                        predictionsMatrix,
+                        ...)
+    # matrix, columns are teams, rows are bootstraps
+    bsMetric <- do.call(rbind, bsMetric)
+}
+
+# this assumes the larger the  metric the better the prediction accuracy
+# bayes facor (K) < a cut off, usually 3 or 5, will be tied with top performer. 
+# Break ties w secondary metric
+
+computeBayesFactor <- function(bootstrapMetricMatrix, bestTeamIndex) 
+{                                                       
+  M <- as.data.frame((bootstrapMetricMatrix) - (bootstrapMetricMatrix[,bestTeamIndex]))
+  K        <- apply(M ,2, function(x) {sum(x <= 0)/sum(x > 0)})
+  K[bestTeamIndex] <- 0 
+  return(K)
+}
+
+
+##I modified the function for use on RMSE - where lower values are better accuracy:
+computeBayesFactor_rmse <- function(bootstrapMetricMatrix, bestTeamIndex) 
+{                                                       
+  M <- as.data.frame((bootstrapMetricMatrix) - (bootstrapMetricMatrix[,bestTeamIndex]))
+  K        <- apply(M ,2, function(x) {sum(-x <= 0)/sum(-x > 0)})
+  K[bestTeamIndex] <- 0 
+  return(K)
+}
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+##munging data to work with post-challenge utils functions 
+
+goldStandardMatrix <- gold %>% 
+  arrange(Compound_SMILES, UniProt_Id, DiscoveRx_Gene_Symbol) %>%
+  select(pKd_.M.) %>% 
+  set_names(c("gold")) %>% 
+  as.matrix()
+
+predictionsMatrix <- pbapply(fv, 1, function(x){
+  foo <- read.csv(syn$get(x['id'])$path) %>% 
+    arrange(Compound_SMILES, UniProt_Id, DiscoveRx_Gene_Symbol) %>%
+    select(pKd_.M._pred) %>% 
+    set_names(c(x['id']))
+}) %>% bind_cols() 
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+##wrappers for python functions to make them compatible with post challenge utils functions
+spearman_r <- function(dataIndices, goldStandardMatrix, predictionsMatrix){
+  
+  pd.df <- as.data.frame(predictionsMatrix[dataIndices,])
+  gs.df <- goldStandardMatrix[dataIndices,] %>% as.data.frame() %>% set_names("gold")
+  gold <- gs.df$gold %>% np_array()
+  
+  spearman.s <- sapply(colnames(predictionsMatrix),function(x){
+    spearman(gold, np_array(pd.df[[x]]))
+  })
+}
+
+rmse_r <- function(dataIndices, goldStandardMatrix, predictionsMatrix){
+  
+  pd.df <- as.data.frame(predictionsMatrix[dataIndices,])
+  gs.df <- goldStandardMatrix[dataIndices,] %>% as.data.frame() %>% set_names("gold")
+  gold <- gs.df$gold %>% np_array()
+  
+  rmse.s <- sapply(colnames(predictionsMatrix),function(x){
+    rmse(gold, np_array(pd.df[[x]]))
+  })
+}
+
+
+auc_r <- function(dataIndices, goldStandardMatrix, predictionsMatrix){
+
+  pd.df <- r_to_py(as.data.frame(predictionsMatrix[dataIndices,]))
+  gs.df <- goldStandardMatrix[dataIndices,] %>% as.data.frame() %>% set_names("gold") %>% r_to_py()
+  auc.s <- sapply(colnames(predictionsMatrix),function(x){
+    average_AUC(gs.df$gold, pd.df[[x]])
+  })
+}
+
+# Below wrapped functions are untested.
+
+# ci_r <- function(dataIndices, goldStandardMatrix, predictionsMatrix){
+# 
+#   pd.df <- as.data.frame(predictionsMatrix[dataIndices,])
+#   gs.df <- goldStandardMatrix[dataIndices,] %>% as.data.frame() %>% set_names("gold")
+#   gold <- gs.df$gold %>% np_array()
+# 
+#   ci.s <- sapply(colnames(predictionsMatrix),function(x){
+#     ci(gold, np_array(pd.df[[x]]))
+#   })
+# }
+# 
+# f1_r <- function(dataIndices, goldStandardMatrix, predictionsMatrix){
+# 
+#   pd.df <- r_to_py(as.data.frame(predictionsMatrix[dataIndices,]))
+#   gs.df <- goldStandardMatrix[dataIndices,] %>% as.data.frame() %>% set_names("gold") %>% r_to_py()
+#   f1.s <- sapply(colnames(predictionsMatrix),function(x){
+#     f1(gs.df$gold, pd.df[[x]])
+#   })
+# }
+# 
+# pearson_r <- function(dataIndices, goldStandardMatrix, predictionsMatrix){
+# 
+#   pd.df <- as.data.frame(predictionsMatrix[dataIndices,])
+#   gs.df <- goldStandardMatrix[dataIndices,] %>% as.data.frame() %>% set_names("gold")
+#   gold <- gs.df$gold %>% np_array()
+# 
+#   pearson.s <- sapply(colnames(predictionsMatrix),function(x){
+#     pearson(gold, np_array(pd.df[[x]]))
+#   })
+# }
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# bootstrapMetricMatrix_spearman <- bootstrappingMetric(goldStandardMatrix = goldStandardMatrix, predictionsMatrix = predictionsMatrix, scoreFun = spearman_r, N = 10000)
+
+bootstrapMetricMatrix_spearman <- syn$get("syn17083376")$path %>% read.csv() %>% as.matrix()
+
+ranked_submissions <- fv %>% select(id, submissionId) %>% set_names(c("id", "objectId")) %>% left_join(leaderboard) %>% select(id, spearman) %>% arrange(desc(spearman))
+
+##spearman best submission is syn17053907, 27th col in bootstrapMetricMatrix
+
+bf_spearman <- computeBayesFactor(bootstrapMetricMatrix_spearman, 27) %>% as.data.frame() %>% set_names("bayes_factor_spearman") %>% rownames_to_column("id")
+```
+
+###Spearman bootstrap results
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+bs_spearman_plotting_data <- bootstrapMetricMatrix_spearman %>%
+  as.data.frame() %>%
+  tidyr::gather(key="id",value="bootstrap_spearman") %>%
+  left_join(fv) %>%
+  mutate(objectId=submissionId) %>%
+  mutate(userId = as.character(userId)) %>%
+  left_join(leaderboard) %>%
+  mutate(label = paste(objectId, userName, sep = "_")) %>%
+  left_join(bf_spearman)
+
+##have to hard-code 9682710 as a BF of 0, because bootstrapped data is identical to same participant's other submission (that is the basis for this calculation)
+
+bs_spearman_plotting_data <- bs_spearman_plotting_data %>% 
+  mutate(bayes_factor_spearman = case_when(label == "9682710_Accutar" ~ 0, label != "9682710_Accutar" ~ bayes_factor_spearman))
+
+bs_spearman_plotting_data$label <- factor(bs_spearman_plotting_data$label, levels = unique(bs_spearman_plotting_data$label[order(bs_spearman_plotting_data$spearman)]))
+
+p<-ggplot() +
+  geom_boxplot(data = bs_spearman_plotting_data %>% 
+                     top_n(200000, spearman), 
+               aes(x=label, y=bootstrap_spearman,
+                   color = cut(bayes_factor_spearman, c(-Inf, 3, 5, 20, Inf))), fill = "#FFFFFF", outlier.shape = NA) +
+  coord_flip() +
+  scale_color_manual(values = c("#499F68","#087F8C", "#1F5673","#46494C"),
+                     name = "Bayes Factor",
+                     labels = c("<3","3-5","5-20",">20")) +
+   geom_point(data = bs_spearman_plotting_data %>% 
+                     top_n(200000, spearman) %>% 
+                     select(label, spearman) %>% 
+                    distinct(),
+              aes(x=label, y=spearman), color = "#F18F01", shape = "circle small", size = 2) +
+  labs(x = "Submission & User", y = "Bootstrapped Spearman") +
+  theme_minimal() 
+
+p
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# bootstrapMetricMatrix_rmse <- bootstrappingMetric(goldStandardMatrix = goldStandardMatrix, predictionsMatrix = predictionsMatrix, scoreFun = rmse_r, N = 10000)
+
+bootstrapMetricMatrix_rmse <- syn$get("syn17083375")$path %>% read.csv() %>% as.matrix()
+
+ranked_submissions <- fv %>% select(id, submissionId) %>% set_names(c("id", "objectId")) %>% left_join(leaderboard) %>% select(id, rmse) %>% arrange(desc(rmse))
+
+##rmse best submission is syn17053970, 87th col in bootstrapMetricMatrix
+bf_rmse <- computeBayesFactor_rmse(bootstrapMetricMatrix_rmse, 87) %>% as.data.frame() %>% set_names("bayes_factor_rmse") %>% rownames_to_column("id")
+```
+
+###RMSE bootstrap results
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+bs_rmse_plotting_data <- bootstrapMetricMatrix_rmse %>%
+  as.data.frame() %>%
+  tidyr::gather(key="id",value="bootstrap_rmse") %>%
+  left_join(fv) %>%
+  mutate(objectId=submissionId) %>%
+  mutate(userId = as.character(userId)) %>%
+  left_join(leaderboard) %>%
+  mutate(label = paste(objectId, userName, sep = "_")) %>%
+  left_join(bf_rmse)
+
+bs_rmse_plotting_data$label <- factor(bs_rmse_plotting_data$label, levels = unique(bs_rmse_plotting_data$label[order(-bs_rmse_plotting_data$rmse)]))
+
+p<-ggplot() +
+  geom_boxplot(data = bs_rmse_plotting_data %>% 
+                     top_n(200000, -rmse), 
+               aes(x=label, y=bootstrap_rmse,
+                   color = cut(bayes_factor_rmse, c(-Inf, 3, 5, 20, Inf))), fill = "#FFFFFF", outlier.shape = NA) +
+  coord_flip() +
+  scale_color_manual(values = c("#499F68","#087F8C", "#1F5673","#46494C"),
+                     name = "Bayes Factor",
+                     labels = c("<3","3-5","5-20",">20")) +
+   geom_point(data = bs_rmse_plotting_data %>% 
+                     top_n(200000, -rmse) %>% 
+                     select(label, rmse) %>% 
+                    distinct(),
+              aes(x=label, y=rmse), color = "#F18F01", shape = "circle small", size = 2) +
+  labs(x = "Submission & User", y = "Bootstrapped RMSE") +
+  theme_minimal() 
+
+p
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+# bootstrapMetricMatrix_auc <- bootstrappingMetric(goldStandardMatrix = goldStandardMatrix, predictionsMatrix = predictionsMatrix, scoreFun = auc_r, N = 10000)
+
+bootstrapMetricMatrix_auc <- syn$get("syn17083374")$path %>% read.csv() %>% as.matrix()
+
+##this is tiebreaker for best submission Spearman 27th col in bootstrapMetricMatrix
+bf_auc <- computeBayesFactor(bootstrapMetricMatrix_auc, 27) %>% as.data.frame() %>% set_names("bayes_factor_auc") %>% rownames_to_column("id")
+```
+
+###Average AUC bootstrap results (tiebreaker for Spearman)
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+bs_auc_plotting_data <- bootstrapMetricMatrix_auc %>%
+   as.data.frame() %>%
+   tidyr::gather(key="id",value="bootstrap_auc") %>%
+   left_join(fv) %>%
+   mutate(objectId=submissionId) %>%
+   mutate(userId = as.character(userId)) %>%
+   left_join(leaderboard) %>%
+   mutate(label = paste(objectId, userName, sep = "_")) %>%
+   left_join(bf_auc)
+
+bs_auc_plotting_data$label <- factor(bs_auc_plotting_data$label, levels = unique(bs_auc_plotting_data$label[order(bs_auc_plotting_data$average_AUC)]))
+
+##have to hard-code 9682710 as a BF of 0, because bootstrapped data is identical to same participant's other submission (that is the basis for this calculation)
+
+bs_auc_plotting_data <- bs_auc_plotting_data %>% 
+  mutate(bayes_factor_auc = case_when(label == "9682710_Accutar" ~ 0, label != "9682710_Accutar" ~ bayes_factor_auc))
+
+p<-ggplot() +
+  geom_boxplot(data = bs_auc_plotting_data %>% 
+                     top_n(200000, average_AUC), 
+               aes(x=label, y=bootstrap_auc,
+                   color = cut(bayes_factor_auc, c(-Inf, 3, 5, 20, Inf))), fill = "#FFFFFF", outlier.shape = NA) +
+  coord_flip() +
+  scale_color_manual(values = c("#499F68","#087F8C", "#1F5673","#46494C"),
+                     name = "Bayes Factor\n(relative to Spearman\ntop scorer)",
+                     labels = c("<3","3-5","5-20",">20")) +
+   geom_point(data = bs_auc_plotting_data %>% 
+                     top_n(200000, average_AUC) %>% 
+                     select(label, average_AUC) %>% 
+                    distinct(),
+              aes(x=label, y=average_AUC), color = "#F18F01", shape = "circle small", size = 2) +
+  labs(x = "Submission & User", y = "Bootstrapped AUC (Spearman tiebreak)") +
+  theme_minimal() 
+
+p
+
+```
+
+```{r  message=FALSE, warning=FALSE, include=FALSE}
+##this is tiebreaker for best submission RMSE, 87th col in bootstrapMetricMatrix
+bf_auc <- computeBayesFactor(bootstrapMetricMatrix_auc, 87) %>% as.data.frame() %>% set_names("bayes_factor_auc") %>% rownames_to_column("id")
+```
+
+###Average AUC bootstrap results (tiebreaker for RMSE)
+
+```{r  echo=FALSE, message=FALSE, warning=FALSE}
+bs_auc_plotting_data <- bootstrapMetricMatrix_auc %>%
+   as.data.frame() %>%
+   tidyr::gather(key="id",value="bootstrap_auc") %>%
+   left_join(fv) %>%
+   mutate(objectId=submissionId) %>%
+   mutate(userId = as.character(userId)) %>%
+   left_join(leaderboard) %>%
+   mutate(label = paste(objectId, userName, sep = "_")) %>%
+   left_join(bf_auc)
+
+bs_auc_plotting_data$label <- factor(bs_auc_plotting_data$label, levels = unique(bs_auc_plotting_data$label[order(bs_auc_plotting_data$average_AUC)]))
+
+p<-ggplot() +
+  geom_boxplot(data = bs_auc_plotting_data %>% 
+                     top_n(200000, average_AUC), 
+               aes(x=label, y=bootstrap_auc,
+                   color = cut(bayes_factor_auc, c(-Inf, 3, 5, 20, Inf))), fill = "#FFFFFF", outlier.shape = NA) +
+  coord_flip() +
+  scale_color_manual(values = c("#499F68","#087F8C", "#1F5673","#46494C"),
+                     name = "Bayes Factor\n(relative to RMSE\ntop scorer)",
+                     labels = c("<3","3-5","5-20",">20")) +
+   geom_point(data = bs_auc_plotting_data %>% 
+                     top_n(200000, average_AUC) %>% 
+                     select(label, average_AUC) %>% 
+                    distinct(),
+              aes(x=label, y=average_AUC), color = "#F18F01", shape = "circle small", size = 2) +
+  labs(x = "Submission & User", y = "Bootstrapped AUC (RMSE tiebreak)") +
+  theme_minimal() 
+
+p
+
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#for reuploading bootstrapped data...
+
+# this.file = 'https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Challenge-Analysis/master/round_1/bootstrap_r1.Rmd'
+
+# write.csv(bootstrapMetricMatrix_auc,"bootstrapped_auc_r1.csv", row.names = F)
+# syn$store(synapse$File('bootstrapped_auc_r1.csv', parentId = 'syn17083205'), executed = this.file, used = c("syn17051994", "syn16809884", "syn17054253", fv$id))
+# 
+# write.csv(bootstrapMetricMatrix_rmse,"bootstrapped_rmse_r1.csv", row.names = F)
+# syn$store(synapse$File('bootstrapped_rmse_r1.csv', parentId = 'syn17083205'), executed = this.file, used = c("syn17051994", "syn16809884", "syn17054253", fv$id))
+# 
+# write.csv(bootstrapMetricMatrix_spearman,"bootstrapped_spearman_r1.csv", row.names = F)
+# syn$store(synapse$File('bootstrapped_spearman_r1.csv', parentId = 'syn17083205'), executed = this.file, used = c("syn17051994", "syn16809884", "syn17054253", fv$id))
+
+
+```
+

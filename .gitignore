@@ -36,3 +36,8 @@ vignettes/*.pdf
 rsconnect/
 round_1/.DS_Store
 .DS_Store
+round_1/bootstrapped_auc_r1.csv
+round_1/bootstrapped_spearman_r1.csv
+round_1/bootstrapped_rmse_r1.csv
+round_1/preliminary_bootstrap_r1.Rmd
+round_1/bootstrap_r1.html
