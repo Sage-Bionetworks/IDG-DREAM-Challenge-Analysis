@@ -41,3 +41,6 @@ round_1/bootstrapped_spearman_r1.csv
 round_1/bootstrapped_rmse_r1.csv
 round_1/preliminary_bootstrap_r1.Rmd
 round_1/bootstrap_r1.html
+round_1/bootstrapped_ci_r1.csv
+round_1/bootstrapped_f1_r1.csv
+round_1/bootstrapped_pearson_r1.csv
