@@ -1,0 +1,285 @@
+---
+title: "Round 1b bayesBootLadderBoot Analysis"
+output:
+    html_document:
+      toc: true
+      toc_float: true
+      toc_depth: 2
+---
+
+In Round 1b of the IDG-DREAM Challenge, we used the BayesBootLadderBoot approach to allow participants to submit repeatedly while (hopefully) avoiding overfitting. In brief, this approach reports back a bootstrapped score of submitted predictions instead of the exact score. In addition, subsequent submissions from a submitter are only given a new score if they are substantially better than the previous best submission (Bayes factor > 3). This approach allows participants to see when they have made large improvements to their model, but doesn't reward small tweaks that incrementally improve scores. We ran this round for 2 months and participants could submit once per day. 
+
+The Spearman correlation was used to track performance for determining a participant's "best" submission, so I've focused on that metric in this analysis, but we also scored RMSE, Pearson correlation, F1, concordance index, and average AUC for each submission. 
+
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(synapser)
+synLogin()
+
+theme_set(theme_bw())
+```
+
+
+```{r getdata, include=FALSE}
+leaderboard <- synTableQuery('select * from syn18487972')$asDataFrame() #full leaderboard
+
+leaderboard_multi_submitters <- leaderboard %>% 
+  add_count(submitterId) #add a count for nubmer of predictions from a given submitter
+ 
+final_submission <- leaderboard_multi_submitters %>% 
+  group_by(submitterId) %>% 
+  filter(createdOn == max(createdOn)) #extract final submission from an individual 
+# 
+# leaderboard_tidy <- leaderboard %>% 
+#   select(id, objectId, name, createdOn, submitterId, met_cutoff, auc, ci, f1, pearson, rmse, spearman,
+#          avg_auc_actual, ci_actual, f1_actual, pearson_actual, rmse_actual, spearman_actual) %>% 
+#   gather(key = "score", value = "value", 7:18)
+
+```
+
+# Submission metrics
+
+Here are some basic numbers about Round 1b.
+
+```{r echo=FALSE}
+round_length <- '59 days'
+no_of_valid_subs <- leaderboard %>% nrow
+no_of_submitters <- leaderboard$submitterId %>% unique %>% length
+no_of_bayes_improved <- leaderboard$met_cutoff[leaderboard$met_cutoff==T] %>% length
+no_of_bayes_not_improved <- leaderboard$met_cutoff[leaderboard$met_cutoff==F] %>% length
+best_spearman <- leaderboard$spearman_actual %>% max %>% round(3)
+best_auc <- leaderboard$avg_auc_actual %>% max %>% round(3)
+best_f1 <- leaderboard$f1_actual %>% max %>% round(3)
+best_ci <- leaderboard$ci_actual %>% max %>% round(3)
+best_pearson <- leaderboard$pearson_actual %>% max %>% round(3)
+best_rmse <- leaderboard$rmse_actual %>% min %>% round(3)
+
+tibble::tribble(
+  ~metric, ~value,
+  "Round Length", round_length,
+  "Number of Valid Submissions", no_of_valid_subs,
+  "Number of Improved Submissions (K>3)", no_of_bayes_improved,
+  "Number of Not-Improved Submissions (K<3 or worse score)", no_of_bayes_not_improved,
+  "Best Spearman Correlation", best_spearman,
+  "Best Average AUC", best_auc,
+  "Best F1", best_f1,
+  "Best Concordance Index", best_ci,
+  "Best Pearson Correlation", best_pearson,
+  "Best Root Mean Squared Error", best_rmse
+) %>% pander::pander()
+
+```
+
+# Overall Performance
+
+Many participants submitted more than once, though some only submitted once during this round. 
+
+```{r echo=FALSE}
+ggplot(leaderboard %>% group_by(submitterId) %>% mutate(max_sp = median(spearman_actual)) %>% ungroup()) +
+  geom_boxplot(aes(x = reorder(as.factor(submitterId), max_sp), y = spearman_actual)) +
+  coord_flip() +
+  labs(y= "True Spearman", x = "Submitter")
+```
+
+Here is the same plot, but only looking at the final submission (blue) and the best submission (orange) for each team. When they are one and the same the point is orange.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot() +
+  geom_boxplot(data = leaderboard_multi_submitters %>% 
+                 group_by(submitterId) %>%
+                 filter(createdOn == max(createdOn)), 
+               aes(x = factor(submitterId, 
+                              levels = submitterId[order(spearman_actual)]), y = spearman_actual), color = "blue") +
+    geom_boxplot(data = leaderboard_multi_submitters %>% 
+                 group_by(submitterId) %>%
+                 filter(spearman_actual == max(spearman_actual)) %>% 
+                   slice(1), 
+               aes(x = factor(submitterId, 
+                              levels = submitterId[order(spearman_actual)]), y = spearman_actual), color = "orange") +
+  coord_flip() +
+    labs(y= "True Spearman", x = "Submitter")
+
+```
+
+#Reported vs actual scores
+
+As a reminder, the participants see a bootstrapped score instead of a precise score. 
+So, how does the reported score track with the actual score? We can plot the actual score vs the reported score (that the participants saw on the leaderboard) to get a sense of how close they were. If they didn't meet the cutoff (`met_cutoff = FALSE`), they were reported back a bootstrap of their previous score, so these will not be correlated. 
+
+As another reminder, we used Spearman for the assignment of whether a submission met a cutoff or did not, so there will be some submissions where the actual vs reported score (for non-Spearman metrics) do not fall along the diagonal for `met_cutoff = TRUE`.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = leaderboard) +
+  geom_point(aes(x = spearman_actual, y = spearman, color = met_cutoff)) +
+  # geom_smooth(method='lm',formula=y~x, data = leaderboard %>% filter(met_cutoff==TRUE), aes(x = spearman_actual, y = spearman)) +
+  labs(x="True Spearman", y = "Bootstrapped Spearman", color = "Met Cutoff")
+
+ggplot(data = leaderboard) +
+  geom_point(aes(x = log10(rmse_actual), y = log10(rmse), color = met_cutoff)) +
+  labs(x="True RMSE", y = "Bootstrapped RMSE", color = "Met Cutoff")
+
+ggplot(data = leaderboard) +
+  geom_point(aes(x = avg_auc_actual, y = auc, color = met_cutoff)) +
+  labs(x="True Average AUC", y = "Bootstrapped Average AUC",  color = "Met Cutoff")
+
+ggplot(data = leaderboard) +
+  geom_point(aes(x = f1_actual, y = f1, color = met_cutoff)) +
+  labs(x="True F1", y = "Bootstrapped F1", color = "Met Cutoff")
+
+ggplot(data = leaderboard) +
+  geom_point(aes(x = ci_actual, y = ci, color = met_cutoff)) + 
+  labs(x="True CI", y = "Bootstrapped CI", color = "Met Cutoff")
+
+ggplot(data = leaderboard) +
+  geom_point(aes(x = pearson_actual, y = pearson, color = met_cutoff)) +
+  labs(x="True Pearson", y = "Bootstrapped Pearson", color = "Met Cutoff")
+
+```
+
+#Participant performance over Time
+
+So using this strategy, do partipants ascend up the ladder? Here I am plotting the submission date vs the reported (bootstrapped) Spearman for all submitters that made more than one Round 1b submission. The score should never go (substantially) down for a given participant (one line). Scores that go slightly down are due to the bootstrapping of returned scores. A few participants started out worse than the "baseline" good model (dashed line) and ended up better.
+
+```{r echo=FALSE}
+ggplot(data = leaderboard_multi_submitters %>% filter(n > 1)) +
+  geom_path(aes(x = createdOn, y = spearman, color = as.factor(submitterId))) + 
+  geom_hline(aes(yintercept = leaderboard_multi_submitters$spearman[leaderboard_multi_submitters$name == "PlosCB_baseline.csv"]), linetype = "dashed") +
+  labs(x="Time", y = "Bootstrapped Spearman", color = "Submitter")
+
+
+```
+
+If we look at the *actual* Spearman for each submission, we can see that it is highly variable, and that participants frequently do much worse than previous submissions (they cannot tell this though, because they remain on the same ladder rung). 
+
+```{r echo=FALSE}
+ggplot(data = leaderboard_multi_submitters %>% filter(n > 1)) +
+  geom_path(aes(x = createdOn, y = spearman_actual, color = as.factor(submitterId))) + 
+  geom_hline(aes(yintercept = leaderboard_multi_submitters$spearman_actual[leaderboard_multi_submitters$name == "PlosCB_baseline.csv"]), linetype = "dashed") +
+    labs(x="Time", y = "True Spearman", color = "Submitter")
+
+```
+
+Let's look at individual participants. Here, each facet plot is an individual participant. The blue line shows what the participant saw, while the red line shows actual performance. The dashed line again reflects the Plos One baseline method. 
+
+```{r echo=FALSE, out.width='150%'}
+ggplot(data = leaderboard_multi_submitters %>% filter(n > 3)) +
+  geom_path(aes(x = lubridate::as_datetime(createdOn), y = spearman, color = "BLB Spearman")) +
+  geom_path(aes(x = lubridate::as_datetime(createdOn), y = spearman_actual, color = "Actual Spearman"))  +
+  geom_hline(aes(yintercept = leaderboard_multi_submitters$spearman_actual[leaderboard_multi_submitters$name == "PlosCB_baseline.csv"]), linetype = "dashed") +
+  facet_wrap(~submitterId, scales = "free") +
+  scale_color_manual(values = c(
+    'BLB Spearman' = 'blue',
+    'Actual Spearman' = 'red')) +
+  labs(color = 'Score Type', x = "Time", y = "Spearman correlation") +
+  theme(axis.text.x = element_text(size = 5, angle = 30))
+
+```
+
+# Example participants
+
+Here is an example of a single participant who improved on most submissions. Again, the blue line is the shown Spearman, while the red is the true score. Each submission is marked by a point if they had a submission that met the cutoff and was considered a new "best" and marked with an X if it did not meet the cutoff. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = leaderboard_multi_submitters %>% filter(submitterId == 3330902)) +
+  geom_step(aes(x = createdOn, y = spearman, color = "BLB Spearman")) +
+  geom_step(aes(x = createdOn, y = spearman_actual, color = "True Spearman")) +
+  geom_point(aes(x = createdOn, y = spearman_actual, shape = met_cutoff), size = 3) +
+  scale_color_manual(values = c(
+    'BLB Spearman' = 'blue',
+    'True Spearman' = 'red')) +
+  scale_shape_manual(values = c(
+    'TRUE' = 20,
+    'FALSE' = 4
+  )) +
+  labs(color = 'Score Type', x = "Time", y = "Spearman correlation", shape = "Met Bayes Cutoff")
+```
+
+Here's another example.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(data = leaderboard_multi_submitters %>% filter(submitterId == 3384808)) +
+  geom_step(aes(x = createdOn, y = spearman, color = "BLB Spearman")) +
+  geom_step(aes(x = createdOn, y = spearman_actual, color = "True Spearman")) +
+  geom_point(aes(x = createdOn, y = spearman_actual, shape = met_cutoff), size = 3) +
+  scale_color_manual(values = c(
+    'BLB Spearman' = 'blue',
+    'True Spearman' = 'red')) +
+  scale_shape_manual(values = c(
+    'TRUE' = 20,
+    'FALSE' = 4
+  )) +
+    labs(color = 'Score Type', x = "Date-time", y = "Spearman correlation", shape = "Met Bayes Cutoff")
+```
+
+# Submission bins
+
+I also looked at performance based on the number of submissions a group made. The data plotted here is the performance for a given submitter based on their number of submissions (x axis). In this first plot, we are looking at the difference between the worst and best submission for a given submitter. 
+
+```{r echo=FALSE}
+difference_best_worst <- leaderboard_multi_submitters %>% 
+  group_by(submitterId) %>% 
+  mutate(n = case_when(n > 5~ '6+',
+                       n <= 7 ~ as.character(n))) %>% 
+  summarize(spearman_diff = max(spearman_actual)-min(spearman_actual), n = unique(n))
+
+ggplot(difference_best_worst) +
+  geom_boxplot(aes(x = as.factor(n), y = spearman_diff)) +
+  labs(x = "Number of Submissions", y = "Difference between best, worst predictions (Spearman)")
+```
+
+In this second plot, we are looking at the difference between the first and last submission for a given submitter. In the final plot, we are looking at the score of their final submission.
+
+```{r echo=FALSE}
+difference_first_last <- leaderboard_multi_submitters %>% 
+  group_by(submitterId) %>% 
+  filter(createdOn == min(createdOn) | createdOn == max(createdOn)) %>% 
+  summarize(spearman_diff = spearman_actual[2]-spearman_actual[1], n = unique(n)) %>% 
+  mutate(n = case_when(n > 5~ '6+',
+                       n <= 7 ~ as.character(n)))
+
+ggplot(difference_first_last) +
+  geom_boxplot(aes(x = as.factor(n), y = spearman_diff)) +
+ labs(x = "Number of Submissions", y = "Difference between last, first predictions (Spearman)")
+
+ggplot(final_submission %>% 
+  mutate(n = case_when(n > 5~ '6+',
+                       n <= 7 ~ as.character(n)))) +
+  geom_boxplot(aes(x = as.factor(n), y = spearman_actual)) +
+    labs(x = "Number of Submissions", y = "Score of final prediction (Spearman)")
+
+```
+
+# Heatmap of all scores
+
+Scores are scaled relative to the other scores of the same type. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, out.height=6}
+library(pheatmap)
+library(viridis)
+
+scoremat <- leaderboard %>% 
+  group_by(submitterId) %>% 
+  top_n(1, spearman) %>% 
+  ungroup() %>% 
+  select(objectId, avg_auc_actual, ci_actual,f1_actual,pearson_actual, spearman_actual, rmse_actual) %>% 
+  mutate(neg_log_rmse = -log10(rmse_actual), rmse_actual = NULL) %>% 
+  column_to_rownames('objectId')
+  
+
+pheatmap(scoremat, 
+         scale = 'column', 
+         color = magma(1000), 
+         border_color = NA, 
+         cellwidth = 50, 
+         cellheight = 5,
+         fonstize = 3)
+
+```
+
+
+
+
+
+
