@@ -4,4 +4,6 @@ synLogin()
 
 leaderboard <- read_csv('round_2_leaderboard.csv')
 
-synStore(File('round_2_leaderboard.csv', parentId = ), executed = this.file)
+this.file <- 'https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Challenge-Analysis/master/round_2/round_2_leaderboard.R'
+
+synStore(File('round_2_leaderboard.csv', parentId = 'syn15667963'), executed = this.file)
