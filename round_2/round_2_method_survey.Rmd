@@ -1,0 +1,147 @@
+---
+title: "IDG-DREAM Round 2 Methods Analysis"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+## Introduction 
+
+Round 2 of the IDG-DREAM Challenge gave participants two opportunities to predict 394 Kd values between 25 compounds and 207 kinases. 
+
+Here, we look at some of the model metadata and how they correlate with performance. This is using survey data where we have cleaned up some of the responses (e.g. eliminating duplicate responses, matching strings or generalizing responses so that they fit into fewer categories). In the case where we had multiple responses for a single submission, we picked the most recent submission as the "truth." 
+
+Important note, some participants filled out a survey for both of their round 2 submissions, while others only filled out 1.
+
+First, load packages and get data, as well as define function to plot categorical variable barplots:
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(synapser)
+library(lettercase)
+library(wesanderson)
+synLogin()
+
+fv <- synTableQuery("select id, submissionId AS objectId, teamId from syn18513076")$asDataFrame() 
+
+leaderboard <- read_csv(synGet("syn18520916")$path) %>% 
+  mutate(objectId = as.character(objectId)) %>% 
+  full_join(fv)
+
+survey <- read_csv(synGet("syn19320609")$path) %>% 
+  mutate(team_survey = team) %>% 
+  mutate(objectId = as.character(objectId)) %>% 
+  select(-team) %>% 
+  mutate(training_data_types = training_data_simple)
+  
+
+survey_df <- left_join(survey, leaderboard) #%>% 
+  # group_by(submitterId) %>%
+  # top_n(1, spearman) %>%
+  # ungroup() %>%
+  # arrange(-spearman) %>%
+  # add_column(rank = group_indices(., -spearman))
+
+plot_categorical_vars <- function(variable, metric){
+  ggplot(survey_df %>% filter(rmse < 5) %>% 
+           arrange(get(variable), desc(get(metric))) %>% 
+           mutate(objectId = factor(objectId, levels = objectId))) + 
+  geom_bar(aes(x = objectId, y = get(metric), fill = get(variable)), stat = "identity") +
+  theme_bw() +
+  scale_fill_manual(lettercase::str_title_case(variable), values = c(wes_palette("Darjeeling1"),wes_palette("Darjeeling2"),wes_palette("IsleofDogs1"))) +
+  labs(x = "Submission", y = lettercase::str_title_case(metric))+
+    
+  theme(axis.text.x = element_blank())
+}
+```
+
+## Barplots of survey responses
+
+### Spearman correlation 
+
+Let's look at the following survey answers (`interesting vars`) and how they correlate to Spearman correlation. On this plot, each bar is the Spearman correlation of a specific submission, and the color of the bar is the response for that survey question. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+interesting_vars <- c("broad_approach","training_data_simple","multidose_bioactivity_types",     "singledose_bioactivity_types","training_strategy","protein_descriptor_types","ATP_binding_pockets", "chemical_fingerprint_types","compound_structural_information","ensemble","optimize_for_R2_metrics", "round1b_helpful" )
+
+plots_sp <- lapply(interesting_vars, plot_categorical_vars, metric = "spearman")
+
+plots_sp
+
+```
+
+
+### RMSE
+
+And repeat for RMSE:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+plots_rm <- lapply(interesting_vars, plot_categorical_vars, metric = "rmse")
+
+plots_rm
+```
+
+
+```{r eval=FALSE, fig.width=8, include=FALSE}
+
+##this doesn't render right in markdown, but use this for figure for paper. 
+
+pdf("r2_methods.pdf",width =15, height= 10)
+cowplot::plot_grid(plots_sp[1][[1]], plots_rm[1][[1]],
+                   plots_sp[2][[1]], plots_rm[2][[1]],
+                   plots_sp[3][[1]], plots_rm[3][[1]], 
+                   labels = c("A","B","C","D","E","F"), ncol=2, align = "v")
+
+dev.off()
+```
+## Categorical scatterplots (RMSE and Spearman)
+
+We can also look at this type of data on a scatterplot, by plotting Spearman on the X axis, log10 RMSE on the Y axis, and coloring each point by survey response. These plots are a bit busy, but convey a lot of info: 
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+interesting_vars <- c("broad_approach","training_data_simple","multidose_bioactivity_types",     "singledose_bioactivity_types","training_strategy","protein_descriptor_types","ATP_binding_pockets", "chemical_fingerprint_types","compound_structural_information","ensemble","optimize_for_R2_metrics" )
+
+plot_categorical_vars_scatterplot <- function(variable){
+  ggplot(survey_df %>% filter(rmse < 5))+ 
+  geom_point(aes(x = spearman, y = log(rmse), color = get(variable)), stat = "identity") +
+  theme_bw() +
+  scale_color_manual(lettercase::str_title_case(variable), values = c(wes_palette("Darjeeling1"),wes_palette("Darjeeling2"),wes_palette("IsleofDogs1"))) +
+  labs(x = "Spearman", y = "Log10(RMSE)")
+  }
+
+plots <- lapply(interesting_vars, plot_categorical_vars_scatterplot)
+
+plots
+```
+
+
+## Continuous scatterplots (RMSE and Spearman)
+
+We can look at this type of data on a scatterplot, by plotting Spearman on the X axis, log10 RMSE on the Y axis, and coloring each point by survey response. These plots are less busy than above, probably are better for continous than categorical data. 
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+interesting_vars <- c("num_of_compound_protein_pairs","num_of_training_compounds","num_of_training_proteins",
+                      "num_models_in_ensemble")               
+
+variable <- "num_of_compound_protein_pairs"
+
+plot_continuous_vars <- function(variable){
+  ggplot(survey_df %>% filter(rmse < 5))+ 
+  geom_point(aes(x = spearman, y = log10(rmse), color = log10(get(variable)))) +
+  theme_bw() +
+  scale_color_gradientn(lettercase::str_title_case(variable), colors = wes_palette("Zissou1", 100, type = "continuous")) +
+  theme(axis.text.x = element_blank())
+}
+
+plots <- lapply(interesting_vars, plot_continuous_vars)
+
+plots
+```
+
+

@@ -1,0 +1,153 @@
+---
+title: "IDG-DREAM AIWIC Docker Comparison"
+output:
+  html_document:
+    df_print: paged
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+Round 2 of the IDG-DREAM Challenge gave participants two opportunities to predict 394 Kd values between 25 compounds and 207 kinases. There are two subchallenges in this round that participants can win via: 
+
+Sub-challenge 1: The top-performing teams will be selected based on the bootstrapped Spearman correlation of the predictions to the test dataset. Teams that have a Bayes Factor of less than 3 are tied. The tiebreaking metric to select the top performer will be the submission with the highest average AUC score.
+
+Sub-challenge 2: The top-performing teams will be selected based on the bootstrapped RMSE of the predictions to the test dataset. Teams that have a Bayes Factor of less than 3 are tied. The tiebreaking metric to select the top performer will be the submission with the highest average AUC score.
+
+
+In addition, participants/teams needed to submit a Dockerized model, writeup, and methods survey to qualified. Participants that could not fulfill this criteria were disqualified. 
+
+In this analysis, we are not considering this last point - this is looking at all predictions whether they qualify to win or not. 
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(challengescoring)
+library(reticulate)
+library(tidyverse)
+library(doMC)
+doMC::registerDoMC(cores = detectCores()-1)
+
+use_python("/usr/local/bin/python2")
+synapse <- import("synapseclient")
+syn <- synapse$Synapse()
+synutils <- synapse$utils
+syn$login()
+source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Challenge-Analysis/master/round_1b/evaluation_metrics_python2.py?token=AE3WNSGGCYBMQN3ZXP373AS46FRB4')
+
+spearman_py <- function(gold, pred){
+  gold_py <- gold %>% np_array()
+  pred_py <- pred %>% np_array()
+  spearman(gold_py, pred_py)
+}
+
+rmse_py <- function(gold, pred){
+  gold_py <- gold %>% np_array()
+  pred_py <- pred %>% np_array()
+  rmse(gold_py, pred_py)
+}
+
+fv <- syn$tableQuery("select id, submissionId AS objectId, teamId, userId from syn18513076")$filepath %>%
+  read_csv()
+
+leaderboard <- read_csv(syn$get("syn18520916")$path) %>% full_join(fv)
+
+get_path <- function(id){
+  syn$get(id)$path
+}
+
+gold <- read_csv(syn$get("syn18421225")$path)
+
+
+
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#aiwic
+best_rmse_by_team <- leaderboard %>%
+  filter(objectId == 9686282)
+
+aiwic_pred_sub <- map_chr(best_rmse_by_team$id, get_path) %>% read_csv() %>% 
+  mutate(aiwic_sub = `pKd_[M]_pred`, `pKd_[M]_pred` = NULL) 
+
+aiwic_pred <- read_csv(syn$get("syn18707968")$path) %>% 
+  mutate(aiwic_dock = `pKd_[M]_pred`, `pKd_[M]_pred` = NULL) %>% 
+  full_join(aiwic_pred_sub)
+
+ggplot(aiwic_pred) + 
+  geom_point(aes(x = aiwic_sub, y = aiwic_dock)) +
+  ggrepel::geom_label_repel(data = aiwic_pred %>% filter(aiwic_dock>aiwic_sub+0.05),
+             aes(x= aiwic_sub, y = aiwic_dock, label = Entrez_Gene_Symbol)) +
+  labs(x = "AIWIC R2 Submission", y = "AIWIC Docker")
+
+
+ggplot(aiwic_pred %>% left_join(gold)) + 
+  geom_point(aes(x = `pKd_[M]`, y = aiwic_sub, color = "R2 Submission")) +
+  geom_point(aes(x = `pKd_[M]`, y = aiwic_dock, color = "Docker")) +
+  scale_color_manual(values =c("#048A81", "#FCB07E"),
+                     labels =c("Docker", "R2 Submission"))+
+  theme_bw() +
+  labs(x = "Gold Standard", y = "Predictions")
+
+```
+
+
+
+```{r}
+boot_sp <-finalScoring(predictions = syn$get("syn18707968")$path,
+             predictionColname = 'pKd_[M]_pred',
+             predictionIds = "docker",
+             goldStandard = gold,
+             goldStandardColname = "pKd_[M]",
+             bestPrediction = get_path(best_rmse_by_team$id),
+             bestPredictionId = "submitted",
+             keyColumns = colnames(gold)[1:6],
+             scoreFun = spearman_py)
+
+boot_rmse <- finalScoring(predictions = syn$get("syn18707968")$path,
+             predictionColname = 'pKd_[M]_pred',
+             predictionIds = "docker",
+             goldStandard = gold,
+             goldStandardColname = "pKd_[M]",
+             bestPrediction = get_path(best_rmse_by_team$id),
+             bestPredictionId = "submitted",
+             keyColumns = colnames(gold)[1:6],
+             scoreFun = rmse_py)
+
+
+tidy_bayes <- tibble('objectId' = colnames(boot_sp$bootstrappedScores),
+                         'bayes' = boot_sp$bayes,
+                     'metric' = "spearman") %>% bind_rows({
+                           tibble('objectId' = colnames(boot_rmse$bootstrappedScores),
+                                  'bayes' = boot_rmse$bayes,
+                                  'metric' = "rmse")
+                         })
+
+tidy_res <- boot_sp$bootstrappedScores %>%
+  as.data.frame %>%
+  tidyr::gather(objectId, bootstrappedScore) %>%
+  mutate(metric = 'spearman') %>% 
+  bind_rows({boot_rmse$bootstrappedScores %>%
+      as.data.frame %>%
+      tidyr::gather(objectId, bootstrappedScore) %>% 
+      mutate(metric = "rmse")}) %>% 
+  left_join(tidy_bayes)
+
+
+ggplot(tidy_res) +
+  geom_boxplot(aes(x = metric, y = bootstrappedScore, color = objectId, 
+                   fill = bayes %>% cut(., c(-Inf, 3, Inf)))) +
+    scale_fill_manual(values = c("#FFFFFF","#FCB07E"),
+                     name = "Bayes Factor",
+                     labels = c("<3",">3")) +
+  scale_color_manual(values = c("#3581B8", "#048A81")) +
+  labs(title = "AI Winter Is Coming R2 vs Docker", 
+       x = "Metric", 
+       y = "Bootstrapped Score") +
+  theme_bw()
+
+```
+
+
+
+```{r}
+sessionInfo()
+```

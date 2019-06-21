@@ -9,6 +9,8 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 
 Round 2 of the IDG-DREAM Challenge gave participants two opportunities to predict 394 Kd values between 25 compounds and 207 kinases. 
 
+
+First, import packages, scoring functions, and challenge data. 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(challengescoring)
 library(reticulate)
@@ -21,50 +23,25 @@ synapse <- import("synapseclient")
 syn <- synapse$Synapse()
 synutils <- synapse$utils
 syn$login()
-source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Challenge-Analysis/master/round_1b/evaluation_metrics_python2.py?token=AE3WNSGZXHMQD6TMZJ7Q5US44V3AG')
+source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Drug-Kinase-Challenge/master/round1b/score/bin/evaluation_metrics_python2.py')
 
 spearman_py <- function(gold, pred){
   gold_py <- gold %>% np_array()
   pred_py <- pred %>% np_array()
   spearman(gold_py, pred_py)
 }
-
+    
 rmse_py <- function(gold, pred){
-  gold_py <- gold %>% np_array()
-  pred_py <- pred %>% np_array()
-  rmse(gold_py, pred_py)
+   gold_py <- gold %>% np_array()
+   pred_py <- pred %>% np_array()
+   rmse(gold_py, pred_py)
 }
-  
-    pearson_py <- function(gold, pred){
-        gold_py <- gold %>% np_array()
-        pred_py <- pred %>% np_array()
-        pearson(gold_py, pred_py)
-    }
-    
-    rmse_py <- function(gold, pred){
-        gold_py <- gold %>% np_array()
-        pred_py <- pred %>% np_array()
-        rmse(gold_py, pred_py)
-    }
-    
-    auc_py <- function(gold, pred){
-        gold_py <- gold %>% np_array()
-        pred_py <- pred %>% np_array()
-        average_AUC(gold_py, pred_py)
-    }
-    
-    ci_py <- function(gold, pred){
-        gold_py <- gold %>% np_array()
-        pred_py <- pred %>% np_array()
-        ci(gold_py, pred_py)
-    }
-    
-    f1_py <- function(gold, pred){
-        gold_py <- gold %>% np_array()
-        pred_py <- pred %>% np_array()
-        f1(gold_py, pred_py)
-    }
 
+auc_py <- function(gold, pred){
+   gold_py <- gold %>% np_array()
+   pred_py <- pred %>% np_array()
+   average_AUC(gold_py, pred_py)
+}
 
 
 fv <- syn$tableQuery("select id, submissionId AS objectId, teamId, userId from syn18513076")$filepath %>%
@@ -77,222 +54,557 @@ get_path <- function(id){
 }
 
 gold <- read_csv(syn$get("syn18421225")$path)
+
+submitted_docker_and_methods <- c("3379336", #baseline
+                                  "3361565", #n121
+                                  "3378762", #KinaseHunter
+                                  "3379046", #Kermit-lab
+                                  "3377646", #QED
+                                  "3379110", #KKT
+                                  "3379198", #let data talk
+                                  "3383197", #davor orsolic/prospectors
+                                  "3380669", #boun
+                                  "3380843", #druginaselearning
+                                  "2223251", #mehmet tan, oselot
+                                  "3361766", #thinng
+                                  "3384382", #dmisdk
+                                  "3371544", #metu_embl
+                                  "3324878", #hulab
+                                  "3337435", #aydin
+                                  "3332429", #ai winter is coming
+                                  "3380028", #ml med
+                                  "3380320", #amsterdamumc-ku
+                                  "3343575") #MCIC
+
+
+get_user_or_team_names <- function(id){
+ name <- try(syn$getTeam(id)$name, silent = T) ##try to get the team name from id 
+ if(class(name)=='try-error'){ ##if it is not a team, will return error, so then try to get user profile
+ try({
+   prof <- syn$getUserProfile(id = id) ##get first and last name
+   fn <- prof$firstName
+   ln <- prof$lastName
+   if(is.null(fn) | is.null(ln)){
+     un <- prof$userName
+     return(un) 
+   }else if(fn == "" | ln == ""){ ##if empty, get username instead
+     un <- prof$userName
+     return(un)
+   }else{
+     return(paste(fn, ln))
+   }
+   })
+   }else{
+     return(name)
+   }
+}
+
+names<- sapply(unique(leaderboard$submitterId), get_user_or_team_names)
+names(names) <- unique(leaderboard$submitterId)
+names_df <- as.data.frame(names) %>% 
+  magrittr::set_colnames("participant") %>% 
+  rownames_to_column("submitterId") %>% 
+  mutate(submitterId= as.numeric(submitterId)) %>% 
+  mutate(participant = as.character(participant))
+
+names_df$participant[names_df$participant=="瑞 张"] <- syn$getUserProfile(id = names_df$submitterId[names_df$participant=="瑞 张"])$userName
+
+names_df$participant[names_df$submitterId=="3383197"] <- "Prospectors"
+
+# names_df$participant <- stringr::str_wrap(names_df$participant, width = 100)
+
 ```
 
 #Spearman ensemble
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+
+Let's rank the submissions, taking the best submission from R2 for each team (54 submissions total, then). Also, filter out teams that were disqualified. 
+ 
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 
 best_spearman_by_team <- leaderboard %>%
+  filter(submitterId %in% submitted_docker_and_methods) %>% 
   group_by(submitterId) %>%
   top_n(1, spearman) %>%
   ungroup() %>%
   arrange(-spearman) %>%
   add_column(rank = group_indices(., -spearman)) %>% 
-  add_column(weight = group_indices(., spearman)) %>% 
-  mutate(objectId = as.character(objectId))
+  mutate(objectId = as.character(objectId)) %>% 
+  left_join(names_df)
 
 paths <- map_chr(best_spearman_by_team$id, get_path)
 names(paths) <- best_spearman_by_team$objectId
 
-preds <- pmap(.l = list(path = paths, renameColname = 'pKd_[M]_pred', newName = names(paths)), .f = challengescoring:::.read_and_rename) 
+```
 
-preds_filt <- preds %>%
+Then we map all of these ranked prediction files and gather the prediction values into one tidy data frame. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+preds <- pmap(.l = list(path = paths, renameColname = 'pKd_[M]_pred', newName = names(paths)), .f = challengescoring:::.read_and_rename) %>%
   purrr::reduce(left_join) %>%
-  dplyr::select(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol, DiscoveRx_Gene_Symbol, best_spearman_by_team$objectId) %>% 
-tidyr::gather(objectId, pred, -Compound_SMILES, -Compound_InchiKeys, -Compound_Name, -UniProt_Id, -Entrez_Gene_Symbol, -DiscoveRx_Gene_Symbol) %>% 
-  left_join(select(best_spearman_by_team, objectId, rank)) %>% 
-  filter(pred<20) 
-  
-galt_preds <- lapply(unique(preds_filt$rank), function(i){
-  galt_colname <- paste0('galton_ensemble_',i)
-  foo <- preds_filt %>%
-    filter(rank <= i) %>% 
-    group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol,
-             DiscoveRx_Gene_Symbol) %>% 
-    summarize(!!galt_colname := mean(pred)) %>% 
-    ungroup()
-  foo
-}) %>% reduce(left_join)
-  
-
-ens_spearman_galt_bs <- finalScoring(predictions = galt_preds %>% select(-galton_ensemble_5),
-                        predictionColname = NA,
-                        predictionIds = colnames(galt_preds %>% select(-galton_ensemble_5))[7:58],
-                        goldStandard = gold,
-                        goldStandardColname = 'pKd_[M]',
-                        bestPrediction =  galt_preds %>% select(1:6,galton_ensemble_5),
-                        bestPredictionId = "galton_ensemble_5",
-                        keyColumns = colnames(gold)[1:6],
-                        doParallel = TRUE,
-                        scoreFun = spearman_py,
-                        largerIsBetter = T)
-
-
-rank_preds <- lapply(unique(preds_filt$rank), function(i){
-  rank_colname <- paste0('rank_ensemble_',i)
-  foo <- preds_filt %>%
-    filter(rank <= i) %>% 
-    group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol,
-             DiscoveRx_Gene_Symbol) %>% 
-    summarize(!!rank_colname := sum(pred*rank/sum((55-i):54))) 
-}) %>% reduce(left_join)
-
-ens_spearman_rank_bs <- finalScoring(predictions = rank_preds %>% select(-rank_ensemble_5),
-                        predictionColname = NA,
-                        predictionIds = colnames(rank_preds %>% select(-rank_ensemble_5))[7:58],
-                        goldStandard = gold,
-                        goldStandardColname = 'pKd_[M]',
-                        bestPrediction =  rank_preds %>% select(1:6,rank_ensemble_5),
-                        bestPredictionId = "rank_ensemble_5",
-                        keyColumns = colnames(gold)[1:6],
-                        doParallel = TRUE,
-                        scoreFun = spearman_py,
-                        largerIsBetter = T)
-
-
-tidy_bayes <- tibble('objectId' = colnames(ens_spearman_bs$bootstrappedScores),
-                         'bayes' = ens_spearman_bs$bayes)
-
-tidy_res <- ens_spearman_bs$bootstrappedScores %>%
-  as.data.frame %>%
-  tidyr::gather(objectId, bootstrappedScore) %>%
-  left_join(tidy_bayes) %>%
-  left_join(leaderboard %>% mutate(objectId = as.character(objectId)))
-
-
-ggplot(data = tidy_res) +
-  geom_boxplot(aes(x = factor(objectId, levels =colnames(galt_preds)), y = bootstrappedScore,
-                   color = cut(bayes, c(-Inf,2,Inf))), outlier.shape = NA)+
-  scale_color_manual(values = c("#30C31E","#000000"),
-                     name = "Bayes Factor",
-                     labels = c("<3",">3")) +
-  labs(x = "Submission", y = "Bootstrapped Spearman") +
-  theme_minimal() +
-  theme(axis.text.y = element_text(size = 6))
-
-return(tibble(iter=c(1:54), 
-              spearman_galt_score = foo_spearman_galt, 
-              spearman_() 
-              spearman_rank_weight = foo_spearman_rank))
-}
-
-ggplot(data = ensembles) +
-  geom_path(aes(x = iter, y = spearman_galt), color = "#9BC1BC")+
-  geom_point(aes(x = iter, y = spearman_galt), color = "#9BC1BC")+
-  geom_path(aes(x = iter, y = spearman_rank_weight), color = "#ED6A5A")+
-  geom_point(aes(x = iter, y = spearman_rank_weight), color = "#ED6A5A")+
-  labs(x = "Top x Submissions", y = "Mean (ensemble) Spearman") +
-  theme_bw() 
+  tidyr::gather(objectId, pred, -Compound_SMILES, -Compound_InchiKeys, -Compound_Name, -UniProt_Id, -Entrez_Gene_Symbol, -DiscoveRx_Gene_Symbol) %>% 
+  left_join(select(best_spearman_by_team, objectId, rank))
 
 ```
 
-# RMSE ensemble
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+Then, we run apply across the number of ranks (1:54), and  iterate over each rank, filtering the data for that rank or better, grouping by each compound-kinase pair, and summarizing the prediction by taking the median prediction for each compound-kinase pair. We repeat this for each rank, and then reduce to get a data frame where median_ensemble_1 is the median predictions for rank 1, median_ensemble_2 is the median prediction for each compound-kinase pair for ranks 1:2, and so forth through 1:54. 
 
-foo_rmse_galt <- c()
-foo_rmse_rank <- c()
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 
-for(i in 1:54){
+median_preds_sp <- lapply(unique(preds$rank), function(i){
+   colname <- paste0('spearman_median_ensemble_',i)
+   foo <- preds %>%
+     filter(rank <= i) %>% 
+     group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol,
+              DiscoveRx_Gene_Symbol) %>% 
+     summarize(!!colname := median(pred)) %>% 
+     ungroup()
+   foo
+ }) %>% reduce(left_join)
+
+```
+
+Now, we need to figure out which ensemble is the best of the 54 we created. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+median_test <- left_join(median_preds_sp, gold)
+
+median_results_spearman <- apply(median_test %>% select(7:(ncol(median_test)-1),`pKd_[M]`), 2, spearman_py, 
+                                 gold = median_test$`pKd_[M]`) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("ensemble_model") %>% 
+  filter(ensemble_model != "pKd_[M]") %>% 
+  mutate(iteration = str_extract(ensemble_model, "[:digit:]+")) %>% 
+  mutate(ensemble_model = str_extract(ensemble_model, "[:alpha:]+_[:alpha:]+_[:alpha:]+"))
+
+```
+
+Looks like the absolute best is median_ensemble_4.
+
+Let's try some other aggregation methods: 
+
+ranked (weighted mean) spearman:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+rank_preds_sp <- lapply(unique(preds$rank), function(i){
+   colname <- paste0('spearman_rank_ensemble_',i)
+   foo <- preds %>%
+     filter(rank <= i) %>% 
+     mutate(predrankweight = (pred*(54-rank))/sum((54-i):53)) %>% 
+     group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol,
+              DiscoveRx_Gene_Symbol) %>% 
+     summarize(!!colname := sum(predrankweight)) %>% 
+     ungroup()
+   foo
+ }) %>% reduce(left_join)
+
+rank_test <- left_join(rank_preds_sp, gold)
+
+rank_results_spearman <- apply(rank_test %>% select(7:(ncol(rank_test)-1),`pKd_[M]`), 2, spearman_py, 
+                                 gold = rank_test$`pKd_[M]`) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("ensemble_model") %>% 
+  filter(ensemble_model != "pKd_[M]") %>% 
+  mutate(iteration = str_extract(ensemble_model, "[:digit:]+")) %>% 
+  mutate(ensemble_model = str_extract(ensemble_model, "[:alpha:]+_[:alpha:]+_[:alpha:]+"))
+
+
+```
+
+mean:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+mean_preds_sp <- lapply(unique(preds$rank), function(i){
+   colname <- paste0('spearman_mean_ensemble_',i)
+   foo <- preds %>%
+     filter(rank <= i) %>% 
+     group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol,
+              DiscoveRx_Gene_Symbol) %>% 
+     summarize(!!colname := mean(pred)) %>% 
+     ungroup()
+   foo
+ }) %>% reduce(left_join)
+
+mean_test <- left_join(mean_preds_sp, gold)
+
+mean_results_spearman <- apply(mean_test %>% select(7:(ncol(mean_test)-1),`pKd_[M]`), 2, spearman_py, 
+                                 gold = mean_test$`pKd_[M]`) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("ensemble_model") %>% 
+  filter(ensemble_model != "pKd_[M]") %>% 
+  mutate(iteration = str_extract(ensemble_model, "[:digit:]+")) %>% 
+  mutate(ensemble_model = str_extract(ensemble_model, "[:alpha:]+_[:alpha:]+_[:alpha:]+"))
+
+
+```
+
+Now stick them all together into one data frame and plot them to get an idea of relative performance. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+ensemble_scores <- bind_rows(median_results_spearman, mean_results_spearman, rank_results_spearman)  %>%  
+  set_names(c("ensemble_model", "score", "iteration")) %>% 
+  mutate(iteration = as.numeric(iteration)) %>% 
+  mutate(label = case_when(iteration == 1 & ensemble_model == "spearman_rank_ensemble"  ~ "Q.E.D.",
+                           iteration == 2 & ensemble_model == "spearman_rank_ensemble"  ~ "1 + AI Winter is Coming",
+                           iteration == 3 & ensemble_model == "spearman_rank_ensemble"  ~ "2 + DMIS_DK",
+                           iteration == 4 & ensemble_model == "spearman_rank_ensemble"  ~ "3 + hulab",
+                           iteration == 5 & ensemble_model == "spearman_rank_ensemble"  ~ "4 + METU_EMBL-EBI_CROssBAR",
+                           iteration == 6 & ensemble_model == "spearman_rank_ensemble"  ~ "5 + PlosCB baseline",
+                           iteration == 7 & ensemble_model == "spearman_rank_ensemble"  ~ "6 + Thin Nguyen",
+                           iteration == 8 & ensemble_model == "spearman_rank_ensemble"  ~ "7 + KKT",
+                           iteration > 8 | ensemble_model != "spearman_rank_ensemble" ~ ""))
+
+```
+
+Cutoff any scores <0.45
+
+```{r}
+ggplot(data = ensemble_scores %>% 
+         filter(grepl("*spearman*", ensemble_model)) %>% 
+         filter(score > 0.45)) +
+  geom_line(aes(x= iteration, y = score, color = ensemble_model)) +
+  ggrepel::geom_label_repel(aes(x= iteration, y = score, label = label), nudge_x = 10, size = 3, segment.alpha = 0.25, arrow = grid::arrow(type = "open", length = unit(0.5, "lines")), alpha = 1, force = 100) +
+  scale_color_manual(values = c("#AA1155","#F8333C","#2B9EB3"),
+                     name = "Method",
+                     labels = c("Mean", "Median", "Rank-weighted")) +
+  theme_bw() +
+  labs(x = "# of Models", y = "Spearman Correlation") +
+  theme(axis.text = element_text(size = 12))
+
+```
+
+Include all scores 
+
+```{r}
+ggplot(data = ensemble_scores %>% 
+         filter(grepl("*spearman*", ensemble_model)))  +
+  geom_line(aes(x= iteration, y = score, color = ensemble_model)) +
+  scale_color_manual(values = c("#AA1155","#F8333C","#2B9EB3"),
+                     name = "Method",
+                     labels = c("Mean", "Median", "Rank-weighted")) +
+  theme_bw() +
+  labs(x = "# of Models", y = "Spearman Correlation") +
+  theme(axis.text = element_text(size = 12))
+```
+
+plot the best vs gold standard where the 8th ensemble is the best: 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+best_ens_vs_gold <- mean_preds_sp %>% 
+  left_join(gold) %>% 
+  select(1:6, spearman_mean_ensemble_8, `pKd_[M]`) %>% 
+  mutate(gold = `pKd_[M]`)
+
+ggplot(data = best_ens_vs_gold) +
+  geom_point(aes(x= gold, y= spearman_mean_ensemble_8)) +
+  theme_bw() +
+  labs(x = "Test Data (pKd)", y = "Best Spearman Ensemble (pKd)") +
+  theme(axis.text = element_text(size = 12))
   
+```
+
+##RMSE
+
+And now, we'll repeat the whole thing but with the other metric, RMSE. 
+
+median: 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
 best_rmse_by_team <- leaderboard %>%
+  filter(submitterId %in% submitted_docker_and_methods) %>% 
   group_by(submitterId) %>%
-  top_n(1, rmse) %>%
+  top_n(1, -rmse) %>%
   ungroup() %>%
-  arrange(rmse) %>%
-  add_column(rank = group_indices(., -rmse)) %>% 
-  slice(1:i) %>% 
-  mutate(objectId = as.character(objectId))
+  arrange(-rmse) %>%
+  add_column(rank = group_indices(., rmse)) %>% 
+  mutate(objectId = as.character(objectId))  
 
 paths <- map_chr(best_rmse_by_team$id, get_path)
 names(paths) <- best_rmse_by_team$objectId
 
-preds_galton <- pmap(.l = list(path = paths, renameColname = 'pKd_[M]_pred', newName = names(paths)), .f = challengescoring:::.read_and_rename) %>%
+preds <- pmap(.l = list(path = paths, renameColname = 'pKd_[M]_pred', newName = names(paths)), .f = challengescoring:::.read_and_rename) %>%
   purrr::reduce(left_join) %>%
   tidyr::gather(objectId, pred, -Compound_SMILES, -Compound_InchiKeys, -Compound_Name, -UniProt_Id, -Entrez_Gene_Symbol, -DiscoveRx_Gene_Symbol) %>% 
-  filter(pred<20) %>% 
-  group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol, DiscoveRx_Gene_Symbol) %>% 
-  summarize(galton_ensemble = mean(pred)) %>% 
-  full_join(gold)
+  left_join(select(best_rmse_by_team, objectId, rank))
 
-preds_weighted <- pmap(.l = list(path = paths, renameColname = 'pKd_[M]_pred', newName = names(paths)), .f = challengescoring:::.read_and_rename) %>%
-  purrr::reduce(left_join) %>%
-  tidyr::gather(objectId, pred, -Compound_SMILES, -Compound_InchiKeys, -Compound_Name, -UniProt_Id, -Entrez_Gene_Symbol, -DiscoveRx_Gene_Symbol) %>% 
-  left_join(select(best_rmse_by_team, objectId, rank)) %>% 
-  filter(pred<20) %>% 
-  group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol, DiscoveRx_Gene_Symbol) %>% 
-  summarize(weighted_ensemble = sum(pred*rank/sum((55-i):54))) %>% 
-  full_join(gold)
+median_preds_rm <- lapply(unique(preds$rank), function(i){
+   colname <- paste0('rmse_median_ensemble_',i)
+   foo <- preds %>%
+     filter(rank <= i) %>% 
+     group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol,
+              DiscoveRx_Gene_Symbol) %>% 
+     summarize(!!colname := median(pred)) %>% 
+     ungroup()
+   foo
+ }) %>% reduce(left_join)
 
-foo_rmse_galt <- c(foo_rmse_galt, rmse_py(preds_galton$`pKd_[M]`, preds_galton$galton_ensemble))
+median_test <- left_join(median_preds_rm, gold)
 
-foo_rmse_rank <- c(foo_rmse_rank, rmse_py(preds_weighted$`pKd_[M]`, preds_weighted$weighted_ensemble))
-
-}
-
-ensembles <- tibble(iter=c(1:54), rmse_galt = foo_rmse_galt, rmse_rank_weight = foo_rmse_rank)
-
-ggplot(data = ensembles) +
-  geom_path(aes(x = iter, y = rmse_galt), color = "#9BC1BC")+
-  geom_point(aes(x = iter, y = rmse_galt), color = "#9BC1BC")+
-  geom_path(aes(x = iter, y = rmse_rank_weight), color = "#ED6A5A")+
-  geom_point(aes(x = iter, y = rmse_rank_weight), color = "#ED6A5A")+
-  labs(x = "Top x Submissions", y = "Mean (ensemble) rmse") +
-  theme_bw() 
+median_results_rmse <- apply(median_test %>% select(7:(ncol(median_test)-1),`pKd_[M]`), 2, rmse_py, 
+                                 gold = median_test$`pKd_[M]`) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("ensemble_model") %>% 
+  filter(ensemble_model != "pKd_[M]") %>% 
+  mutate(iteration = str_extract(ensemble_model, "[:digit:]+")) %>% 
+  mutate(ensemble_model = str_extract(ensemble_model, "[:alpha:]+_[:alpha:]+_[:alpha:]+"))
 
 ```
 
-#auc ensemble
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+ranked (weighted mean) RMSE:
 
-foo_auc_galt <- c()
-foo_auc_rank <- c()
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 
-for(i in 1:54){
+rank_preds_rm <- lapply(unique(preds$rank), function(i){
+   colname <- paste0('rmse_rank_ensemble_',i)
+   foo <- preds %>%
+     filter(rank <= i) %>% 
+     mutate(predrankweight = (pred*(21-rank))/sum((21-i):20)) %>% 
+     group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol,
+              DiscoveRx_Gene_Symbol) %>% 
+     summarize(!!colname := sum(predrankweight)) %>% 
+     ungroup()
+   foo
+ }) %>% reduce(left_join)
+
+rank_test <- left_join(rank_preds_rm, gold)
+
+rank_results_rmse <- apply(rank_test %>% select(7:(ncol(rank_test)-1),`pKd_[M]`), 2, rmse_py, 
+                                 gold = rank_test$`pKd_[M]`) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("ensemble_model") %>% 
+  filter(ensemble_model != "pKd_[M]") %>% 
+  mutate(iteration = str_extract(ensemble_model, "[:digit:]+")) %>% 
+  mutate(ensemble_model = str_extract(ensemble_model, "[:alpha:]+_[:alpha:]+_[:alpha:]+"))
+
+```
+
+mean:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+mean_preds_rm <- lapply(unique(preds$rank), function(i){
+   colname <- paste0('rmse_mean_ensemble_',i)
+   foo <- preds %>%
+     filter(rank <= i) %>% 
+     group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol,
+              DiscoveRx_Gene_Symbol) %>% 
+     summarize(!!colname := mean(pred)) %>% 
+     ungroup()
+   foo
+ }) %>% reduce(left_join)
+
+mean_test <- left_join(mean_preds_rm, gold)
+
+mean_results_rmse <- apply(mean_test %>% select(7:(ncol(mean_test)-1),`pKd_[M]`), 2, rmse_py, 
+                                 gold = mean_test$`pKd_[M]`) %>% 
+  as.data.frame() %>% 
+  rownames_to_column("ensemble_model") %>% 
+  filter(ensemble_model != "pKd_[M]") %>% 
+  mutate(iteration = str_extract(ensemble_model, "[:digit:]+")) %>% 
+  mutate(ensemble_model = str_extract(ensemble_model, "[:alpha:]+_[:alpha:]+_[:alpha:]+"))
+
+
+```
+
+plot it all:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+ensemble_scores <- bind_rows(median_results_rmse, mean_results_rmse, rank_results_rmse)  %>%  
+  set_names(c("ensemble_model", "score", "iteration")) %>% 
+  mutate(iteration = as.numeric(iteration)) %>% 
+  mutate(label = case_when(iteration == 1 & ensemble_model == "rmse_rank_ensemble"  ~ "Gregory Koytiger",
+                           iteration == 2 & ensemble_model == "rmse_rank_ensemble"  ~ "1 + AI Winter is Coming",
+                           iteration == 3 & ensemble_model == "rmse_rank_ensemble" ~ "2 + DMIS_DK",
+                           iteration == 4 & ensemble_model == "rmse_rank_ensemble" ~ "3 + ljwyc", 
+                           iteration == 5 & ensemble_model == "rmse_rank_ensemble" ~ "4 + Q.E.D", 
+                           iteration > 4 | ensemble_model != "rmse_rank_ensemble" ~ ""))
+
+```
+
+Plot  where RMSE <1
+
+```{r}
+ggplot(data = ensemble_scores %>% 
+         filter(grepl("*rmse*", ensemble_model)) %>% 
+         filter(score < 1)) +
+  geom_line(aes(x= iteration, y = score, color = ensemble_model)) +
+  ggrepel::geom_label_repel(aes(x= iteration, y = score, label = label), size = 3, segment.alpha = 0.25, alpha = 1, direction = "y", ylim =c(0.865,0.92), xlim = c(30,54), force = 20,arrow = grid::arrow(type = "open", length = unit(0.3, "lines"))) +
+  scale_color_manual(values = c("#AA1155","#F8333C","#2B9EB3"),
+                     name = "Method",
+                     labels = c("Mean", "Median", "Rank-weighted")) +
+  theme_bw() +
+  labs(x = "# of Models", y = "RMSE") +
+  theme(axis.text = element_text(size = 12))
+
+```
+
+Plot all no cutoff
+
+```{r}
+ggplot(data = ensemble_scores %>% 
+         filter(grepl("*rmse*", ensemble_model))) +
+  geom_line(aes(x= iteration, y = score, color = ensemble_model)) +
+  scale_color_manual(values = c("#AA1155","#F8333C","#2B9EB3"),
+                     name = "Method",
+                     labels = c("Mean", "Median", "Rank-weighted")) +
+  theme_bw() +
+  labs(x = "# of Models", y = "RMSE") +
+  theme(axis.text = element_text(size = 12))
+
+```
+
+plot the best vs gold standard, where the 5th ensemble is the best:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+best_ens_vs_gold <- mean_preds_rm %>% 
+  left_join(gold) %>% 
+  select(1:6, rmse_mean_ensemble_5, `pKd_[M]`) %>% 
+  mutate(gold = `pKd_[M]`)
+
+ggplot(data = best_ens_vs_gold) +
+  geom_point(aes(x= gold, y= rmse_mean_ensemble_5)) +
+  theme_bw() +
+  labs(x = "Test Data (pKd)", y = "Best RMSE Ensemble (pKd)") +
+  theme(axis.text = element_text(size = 12))
   
-best_auc_by_team <- leaderboard %>%
-  group_by(submitterId) %>%
-  top_n(1, average_auc) %>%
-  ungroup() %>%
-  arrange(-average_auc) %>%
-  add_column(rank = group_indices(., average_auc)) %>% 
-  slice(1:i) %>% 
-  mutate(objectId = as.character(objectId))
+```
 
-paths <- map_chr(best_auc_by_team$id, get_path)
-names(paths) <- best_auc_by_team$objectId
+Then, we score all of these predictions using a bootstrap function from the `challengescoring` package. We'll calculate Bayes factors using the first 'ensemble' (i.e. the top method only)  as reference for "best" prediction to assess whether it's substantially different from its neighboring ensembles. 
 
-preds_galton <- pmap(.l = list(path = paths, renameColname = 'pKd_[M]_pred', newName = names(paths)), .f = challengescoring:::.read_and_rename) %>%
-  purrr::reduce(left_join) %>%
-  tidyr::gather(objectId, pred, -Compound_SMILES, -Compound_InchiKeys, -Compound_Name, -UniProt_Id, -Entrez_Gene_Symbol, -DiscoveRx_Gene_Symbol) %>% 
-  filter(pred<20) %>% 
-  group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol, DiscoveRx_Gene_Symbol) %>% 
-  summarize(galton_ensemble = mean(pred)) %>% 
-  full_join(gold)
+spearman:
 
-preds_weighted <- pmap(.l = list(path = paths, renameColname = 'pKd_[M]_pred', newName = names(paths)), .f = challengescoring:::.read_and_rename) %>%
-  purrr::reduce(left_join) %>%
-  tidyr::gather(objectId, pred, -Compound_SMILES, -Compound_InchiKeys, -Compound_Name, -UniProt_Id, -Entrez_Gene_Symbol, -DiscoveRx_Gene_Symbol) %>% 
-  left_join(select(best_auc_by_team, objectId, rank)) %>% 
-  filter(pred<20) %>% 
-  group_by(Compound_SMILES, Compound_InchiKeys, Compound_Name, UniProt_Id, Entrez_Gene_Symbol, DiscoveRx_Gene_Symbol) %>% 
-  summarize(weighted_ensemble = sum(pred*rank/sum((55-i):54))) %>% 
-  full_join(gold)
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 
-foo_auc_galt <- c(foo_auc_galt, auc_py(preds_galton$`pKd_[M]`, preds_galton$galton_ensemble))
+computeBayesFactorWhereRefIsNotBest <- function(bootstrapMetricMatrix,
+                               refPredIndex,
+                               invertBayes){
 
-foo_auc_rank <- c(foo_auc_rank, auc_py(preds_weighted$`pKd_[M]`, preds_weighted$weighted_ensemble))
+    M <- as.data.frame(bootstrapMetricMatrix - bootstrapMetricMatrix[,refPredIndex])
+    K <- apply(M ,2, function(x) {
+      k <- sum(x >= 0)/sum(x < 0)
+      if(sum(x >= 0) > sum(x < 0)){
+      return(k)
+      }else{
+      return(1/k)
+      }
+    })
+    if(invertBayes == T){K <- 1/K}
+    K[refPredIndex] <- 0
 
+    return(K)
 }
 
-ensembles <- tibble(iter=c(1:54), auc_galt = foo_auc_galt, auc_rank_weight = foo_auc_rank)
 
-ggplot(data = ensembles) +
-  geom_path(aes(x = iter, y = auc_galt), color = "#9BC1BC")+
-  geom_point(aes(x = iter, y = auc_galt), color = "#9BC1BC")+
-  geom_path(aes(x = iter, y = auc_rank_weight), color = "#ED6A5A")+
-  geom_point(aes(x = iter, y = auc_rank_weight), color = "#ED6A5A")+
-  labs(x = "Top x Submissions", y = "Mean (ensemble) average AUC") +
-  theme_minimal() 
+ens_spearman_rank_bs <- finalScoring(predictions = rank_preds_sp %>% select(-spearman_rank_ensemble_1),
+                         predictionColname = NA,
+                         predictionIds = colnames(rank_preds_sp %>% select(-spearman_rank_ensemble_1))[7:58],
+                         goldStandard = gold,
+                         goldStandardColname = 'pKd_[M]',
+                         bestPrediction =  rank_preds_sp %>% select(1:6,spearman_rank_ensemble_1),
+                         bestPredictionId = "spearman_rank_ensemble_1",
+                         keyColumns = colnames(gold)[1:6],
+                         doParallel = TRUE,
+                         scoreFun = spearman_py,
+                         largerIsBetter = T)
 
+bayesredo <- computeBayesFactorWhereRefIsNotBest(ens_spearman_rank_bs$bootstrappedScores,
+                                                 1, F)
+
+tidy_bayes <- tibble('iteration' = colnames(ens_spearman_rank_bs$bootstrappedScores),
+                         'bayes' = bayesredo)
+
+tidy_res <- ens_spearman_rank_bs$bootstrappedScores %>%
+  as.data.frame %>%
+  tidyr::gather(iteration, bootstrappedScore) %>%
+  left_join(tidy_bayes) %>%
+  mutate(iteration = stringr::str_extract(iteration, "[:digit:]+") %>% as.numeric %>% as.integer) %>% 
+  left_join(best_spearman_by_team, by = c("iteration" = "rank")) %>% 
+  left_join(names_df) %>% 
+  mutate(model = paste0(iteration-1," + ", participant))
+
+ggplot(data = tidy_res) +
+  geom_boxplot(aes(x = reorder(model, iteration, fun = mean) , y = bootstrappedScore,                     
+                   color = cut(bayes, c(-1,0, 3, 5,Inf), include.lowest = T, ordered_result = T, right = T)), outlier.shape = NA)+
+  scale_color_manual(values = c("#AA1155","#F8333C","#FCAB10","#2B9EB3"),
+                     name = "Bayes Factor",
+                     labels = c("Reference", "<3","3-5",">5")) +
+  labs(x = "# of models", y = "Bootstrapped Spearman") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, angle = 55, hjust = 1, vjust = 1))
+
+```
+
+RMSE:
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+
+ens_rmse_rank_bs <- finalScoring(predictions = rank_preds_rm %>% select(-rmse_rank_ensemble_1),
+                         predictionColname = NA,
+                         predictionIds = colnames(rank_preds_rm %>% select(-rmse_rank_ensemble_1))[7:58],
+                         goldStandard = gold,
+                         goldStandardColname = 'pKd_[M]',
+                         bestPrediction =  rank_preds_rm %>% select(1:6,rmse_rank_ensemble_1),
+                         bestPredictionId = "rmse_rank_ensemble_1",
+                         keyColumns = colnames(gold)[1:6],
+                         doParallel = TRUE,
+                         scoreFun = rmse_py,
+                         largerIsBetter = T)
+
+bayesredo <- computeBayesFactorWhereRefIsNotBest(ens_rmse_rank_bs$bootstrappedScores,
+                                                 1, F)
+
+tidy_bayes <- tibble('iteration' = colnames(ens_rmse_rank_bs$bootstrappedScores),
+                         'bayes' = bayesredo)
+
+tidy_res <- ens_rmse_rank_bs$bootstrappedScores %>%
+  as.data.frame %>%
+  tidyr::gather(iteration, bootstrappedScore) %>%
+  left_join(tidy_bayes) %>%
+  mutate(iteration = stringr::str_extract(iteration, "[:digit:]+") %>% as.numeric %>% as.integer) %>% 
+  left_join(best_rmse_by_team, by = c("iteration" = "rank")) %>% 
+  left_join(names_df) %>% 
+  mutate(model = paste0(iteration-1," + ", participant))
+
+ggplot(data = tidy_res) +
+  geom_boxplot(aes(x = reorder(model, iteration, fun = mean) , y = bootstrappedScore,                     
+                   color = cut(bayes, c(-1,0, 3, 5,Inf), include.lowest = T, ordered_result = T, right = T)), outlier.shape = NA)+
+  scale_color_manual(values = c("#AA1155","#F8333C","#FCAB10","#2B9EB3"),
+                     name = "Bayes Factor",
+                     labels = c("Reference", "<3","3-5",">5")) +
+  labs(x = "# of models", y = "Bootstrapped RMSE") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 7, angle = 55, hjust = 1, vjust = 1))
+
+```
+
+```{r}
+write_csv(mean_preds_sp,"spearman_mean_ensemble_models_qualified_subs.csv")
+write_csv(mean_preds_rm,"rmse_mean_ensemble_models_qualified_subs.csv")
+write_csv(median_preds_sp,"spearman_median_ensemble_models_qualified_subs.csv")
+write_csv(median_preds_rm,"rmse_median_ensemble_models_qualified_subs.csv")
+write_csv(rank_preds_sp,"spearman_rank_ensemble_models_qualified_subs.csv")
+write_csv(rank_preds_rm,"rmse_rank_ensemble_models_qualified_subs.csv")
+
+syn$store(synapse$File("spearman_mean_ensemble_models_qualified_subs.csv", parentId = "syn18700959"))
+syn$store(synapse$File("rmse_mean_ensemble_models_qualified_subs.csv", parentId = "syn18700959"))
+syn$store(synapse$File("spearman_median_ensemble_models_qualified_subs.csv", parentId = "syn18700959"))
+syn$store(synapse$File("rmse_median_ensemble_models_qualified_subs.csv", parentId = "syn18700959"))
+syn$store(synapse$File("spearman_rank_ensemble_models_qualified_subs.csv", parentId = "syn18700959"))
+syn$store(synapse$File("rmse_rank_ensemble_models_qualified_subs.csv", parentId = "syn18700959"))
+
+```
+
+
+```{r}
+sessionInfo()
 ```
 

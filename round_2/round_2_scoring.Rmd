@@ -6,17 +6,15 @@ output:
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 ---
 
-Round 2 of the IDG-DREAM Challenge gave participants two opportunities to predict 394 Kd values between 25 compounds and 207 kinases. There are two subchallenges in this round that participants can win via: 
+Round 2 of the IDG-DREAM Challenge gave participants two opportunities to predict 394 Kd values between 25 compounds and 207 kinases. There are two subchallenges in this round that participants can win via:
 
 Sub-challenge 1: The top-performing teams will be selected based on the bootstrapped Spearman correlation of the predictions to the test dataset. Teams that have a Bayes Factor of less than 3 are tied. The tiebreaking metric to select the top performer will be the submission with the highest average AUC score.
 
 Sub-challenge 2: The top-performing teams will be selected based on the bootstrapped RMSE of the predictions to the test dataset. Teams that have a Bayes Factor of less than 3 are tied. The tiebreaking metric to select the top performer will be the submission with the highest average AUC score.
 
+In addition, participants/teams needed to submit a Dockerized model, writeup, and methods survey to qualified. Participants that could not fulfill this criteria were disqualified.
 
-In addition, participants/teams needed to submit a Dockerized model, writeup, and methods survey to qualified. Participants that could not fulfill this criteria were disqualified. 
-
-In this analysis, we are not considering this last point - this is looking at all predictions whether they qualify to win or not. 
-
+Here, we are only looking at qualified results (when considering who submitted a Docker container).
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(challengescoring)
@@ -30,7 +28,7 @@ synapse <- import("synapseclient")
 syn <- synapse$Synapse()
 synutils <- synapse$utils
 syn$login()
-source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Challenge-Analysis/master/round_1b/evaluation_metrics_python2.py?token=AE3WNSGZXHMQD6TMZJ7Q5US44V3AG')
+source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Challenge-Analysis/master/round_1b/evaluation_metrics_python2.py?token=AE3WNSB7JZJ7FL62FMW47OK5AFV72')
 
 spearman_py <- function(gold, pred){
   gold_py <- gold %>% np_array()
@@ -44,6 +42,25 @@ rmse_py <- function(gold, pred){
   rmse(gold_py, pred_py)
 }
 
+computeBayesFactorWhereRefIsNotBest <- function(bootstrapMetricMatrix,
+                               refPredIndex,
+                               invertBayes){
+
+    M <- as.data.frame(bootstrapMetricMatrix - bootstrapMetricMatrix[,refPredIndex])
+    K <- apply(M ,2, function(x) {
+      k <- sum(x >= 0)/sum(x < 0)
+      if(sum(x >= 0) > sum(x < 0)){
+      return(k)
+      }else{
+      return(1/k)
+      }
+    })
+    if(invertBayes == T){K <- 1/K}
+    K[refPredIndex] <- 0
+
+    return(K)
+}
+
 fv <- syn$tableQuery("select id, submissionId AS objectId, teamId, userId from syn18513076")$filepath %>%
   read_csv()
 
@@ -55,11 +72,70 @@ get_path <- function(id){
 
 gold <- read_csv(syn$get("syn18421225")$path)
 ```
-Here the first analysis shows all results, regardless of whether DQed or not. 
 
-## PRELIMINARY RESULTS 
+```{r echo=FALSE}
+get_user_or_team_names <- function(id){
+ name <- try(syn$getTeam(id)$name, silent = T) ##try to get the team name from id 
+ if(class(name)=='try-error'){ ##if it is not a team, will return error, so then try to get user profile
+ try({
+   prof <- syn$getUserProfile(id = id) ##get first and last name
+   fn <- prof$firstName
+   ln <- prof$lastName
+   if(is.null(fn) | is.null(ln)){
+     un <- prof$userName
+     return(un) 
+   }else if(fn == "" | ln == ""){ ##if empty, get username instead
+     un <- prof$userName
+     return(un)
+   }else{
+     return(paste(fn, ln))
+   }
+   })
+   }else{
+     return(name)
+   }
+}
 
-### SC1 - SPEARMAN (not official)
+names<- sapply(unique(leaderboard$submitterId), get_user_or_team_names)
+names(names) <- unique(leaderboard$submitterId)
+names_df <- as.data.frame(names) %>% 
+  magrittr::set_colnames("participant") %>% 
+  rownames_to_column("submitterId") %>% 
+  mutate(submitterId= as.numeric(submitterId)) %>% 
+  mutate(participant = as.character(participant))
+
+names_df$participant[names_df$participant=="瑞 张"] <- syn$getUserProfile(id = names_df$submitterId[names_df$participant=="瑞 张"])$userName
+
+names_df$participant[names_df$submitterId=="3383197"] <- "Prospectors"
+
+names_df$participant <- stringr::str_wrap(names_df$participant, width = 100)
+
+submitted_docker_and_methods <- c("3379336", #baseline
+                                  "3361565", #n121
+                                  "3378762", #KinaseHunter
+                                  "3379046", #Kermit-lab
+                                  "3377646", #QED
+                                  "3379110", #KKT
+                                  "3379198", #let data talk
+                                  "3383197", #davor orsolic/prospectors
+                                  "3380669", #boun
+                                  "3380843", #druginaselearning
+                                  "2223251", #mehmet tan, oselot
+                                  "3361766", #thinng
+                                  "3384382", #dmisdk
+                                  "3371544", #metu_embl
+                                  "3324878", #hulab
+                                  "3337435", #aydin
+                                  "3332429", #ai winter is coming
+                                  "3380028", #ml med
+                                  "3380320", #amsterdamumc-ku
+                                  "3343575") #MCIC
+
+```
+
+Here, we’ve analyzed only the submissions that met the ‘letter of the law’ as laid out by the challenge organizers eg. they submitted a survey, write-up, and Docker container. If you do not show up in the results below, but expected to, you likely have not filled out a [Docker survey](https://docs.google.com/forms/d/e/1FAIpQLSeXubV_aQNjIpe1ds2bI-JgZvpp49fpTPzuEnNNB2RKFwGmJQ/viewform) or a [methods survey](https://forms.gle/PadRQQSgVTMCn58LA), or we were unable to associate your survey responses with your submissions with the information that you provided. If you'd like to submit a container and/or methods, please use the links above to do so, and then email me to let me know that you've done this.
+
+### SC1 - SPEARMAN 
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ####SPEARMAN ANALYSIS
@@ -68,7 +144,9 @@ best_spearman_by_team <- leaderboard %>%
   group_by(submitterId) %>%
   top_n(1, spearman) %>%
   ungroup() %>%
-  arrange(-spearman)
+  arrange(-spearman) %>% 
+  filter(submitterId %in% submitted_docker_and_methods) %>% 
+  left_join(names_df)
 
 paths <- map_chr(best_spearman_by_team$id, get_path)
 
@@ -96,28 +174,21 @@ tidy_res <- results_spearman$bootstrappedScores %>%
   left_join(leaderboard %>% mutate(objectId = as.character(objectId))) %>% 
   left_join(names_df)
 
-
 ggplot(data = tidy_res) +
   geom_boxplot(aes(x = reorder(participant, bootstrappedScore, fun = median), y = bootstrappedScore,
-                   color = cut(bayes, c(-Inf, 3, 5,Inf))), outlier.shape = NA)+
+                    color = cut(bayes, c(-1,0, 3, 5,Inf), include.lowest = T, ordered_result = T, right = T)), outlier.shape = NA)+
+  geom_label(data = tidy_res %>% select(participant, bayes, average_auc) %>% distinct() %>% filter(bayes <3),
+            aes(x=participant, y = 0.3, label = round(average_auc,3)), size = 3)+
   coord_flip() +
-  scale_color_manual(values = c("#30C31E","#FFCA3E","#FF3E3E"),
+  scale_color_manual(values = c("#AA1155","#F8333C","#2B9EB3"),
                      name = "Bayes Factor",
-                     labels = c("<3","3-5",">5")) +
-  labs(x = "Submission", y = "Bootstrapped Spearman") +
-  theme_minimal() +
-  theme(axis.text.y = element_text(size = 6))
-
-ggplot(data = tidy_res) +
-  geom_boxplot(aes(x = reorder(participant, bootstrappedScore, fun = median), y = bootstrappedScore), outlier.shape = NA)+
-  coord_flip() +
-  labs(x = "Submission", y = "Bootstrapped Spearman") +
-  theme_minimal() +
-  theme(axis.text.y = element_text(size = 6))
-
+                     labels = c("Reference", "<3",">5")) +
+  labs(x = "Team/Participant", y = "Bootstrapped Spearman") +
+  theme_bw() +
+  theme(axis.text = element_text(size = 10))
 ```
 
-### SC2 - RMSE (not official)
+### SC2 - RMSE
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -127,7 +198,9 @@ best_rmse_by_team <- leaderboard %>%
   group_by(submitterId) %>%
   top_n(1, -rmse) %>%
   ungroup() %>%
-  arrange(rmse)
+  arrange(rmse) %>% 
+  filter(submitterId %in% submitted_docker_and_methods) %>% 
+  left_join(names_df)
 
 paths <- map_chr(best_rmse_by_team$id, get_path)
 
@@ -158,24 +231,94 @@ tidy_res_rmse <- results_rmse$bootstrappedScores %>%
 
 ggplot(data = tidy_res_rmse) +
   geom_boxplot(aes(x = reorder(participant, -bootstrappedScore, fun = median), y = log10(bootstrappedScore),
-                   color = cut(bayes, c(-Inf, 3, 5, 20, Inf))), outlier.shape = NA)+
+                    color = cut(bayes, c(-1,0, 3, 5,Inf), include.lowest = T, ordered_result = T, right = T)), outlier.shape = NA)+
+  geom_label(data = tidy_res_rmse %>% select(participant, bayes, average_auc) %>% distinct() %>% filter(bayes <3),
+            aes(x=participant, y = 0.15, label = round(average_auc,3)), size = 3)+
   coord_flip() +
-  scale_color_manual(values = c("#30C31E","#FFCA3E","#FF3E3E",'#000000'),
+  scale_color_manual(values = c("#AA1155","#F8333C","#FCAB10","#2B9EB3"),
                      name = "Bayes Factor",
-                     labels = c("<3","3-5",">5")) +
-  labs(x = "Submission", y = "log10(Bootstrapped RMSE)") +
-  theme_minimal() +
-  theme(axis.text.y = element_text(size = 6))
+                     labels = c("Reference", "<3","3-5",">5")) +
+  labs(x = "Team/Participant", y = "log10(Bootstrapped RMSE)") +
+  theme_bw() +
+  theme(axis.text = element_text(size = 10))
 
-ggplot(data = tidy_res_rmse) +
-  geom_boxplot(aes(x = reorder(participant, -bootstrappedScore, fun = median), y = log10(bootstrappedScore)), outlier.shape = NA)+
+```
+
+Now, let's reanalyze the above plots, but using the baseline as the reference for the Bayes factor calculation.
+
+### SC1 - SPEARMAN 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+####SPEARMAN ANALYSIS
+
+idx_plos <- match("9685944",colnames(results_spearman$bootstrappedScores))
+
+results_spearman$recalculate_bayes <- computeBayesFactorWhereRefIsNotBest(results_spearman$bootstrappedScores, idx_plos ,invertBayes = F)
+
+tidy_bayes <- tibble('objectId' = colnames(results_spearman$bootstrappedScores),
+                         'bayes' = results_spearman$recalculate_bayes)
+
+
+tidy_res <- results_spearman$bootstrappedScores %>%
+  as.data.frame %>%
+  tidyr::gather(objectId, bootstrappedScore) %>%
+  left_join(tidy_bayes) %>%
+  left_join(leaderboard %>% mutate(objectId = as.character(objectId))) %>% 
+  left_join(names_df) %>% 
+  mutate(bayes = case_when(submitterId %in% submitted_docker_and_methods ~ bayes,
+                   !submitterId %in% submitted_docker_and_methods ~ -1))
+
+
+ggplot(data = tidy_res) +
+  geom_boxplot(aes(x = reorder(participant, bootstrappedScore, fun = median), y = bootstrappedScore,
+                    color = cut(bayes, c(-1,0, 3, 5,Inf), include.lowest = T, ordered_result = T, right = T)), outlier.shape = NA)+
   coord_flip() +
-  labs(x = "Submission", y = "log10(Bootstrapped RMSE)") +
-  theme_minimal() +
-  theme(axis.text.y = element_text(size = 6))
+  scale_color_manual(values = c("#AA1155","#F8333C","#FCAB10","#2B9EB3"),
+                     name = "Bayes Factor",
+                     labels = c("Reference", "<3","3-5",">5")) +
+    labs(x = "Team/Participant", y = "Bootstrapped Spearman") +
+  theme_bw() +
+  theme(axis.text = element_text(size = 10))
+
+```
+
+### SC2 - RMSE
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+####RMSE ANALYSIS
+idx_plos <- match("9685944",colnames(results_rmse$bootstrappedScores))
+
+results_rmse$recalculate_bayes <- computeBayesFactorWhereRefIsNotBest(results_rmse$bootstrappedScores, idx_plos ,invertBayes = F)
+
+tidy_bayes <- tibble('objectId' = colnames(results_rmse$bootstrappedScores),
+                         'bayes' = results_rmse$recalculate_bayes)
+
+
+tidy_res <- results_rmse$bootstrappedScores %>%
+  as.data.frame %>%
+  tidyr::gather(objectId, bootstrappedScore) %>%
+  left_join(tidy_bayes) %>%
+  left_join(leaderboard %>% mutate(objectId = as.character(objectId))) %>% 
+  left_join(names_df) %>% 
+  mutate(bayes = case_when(submitterId %in% submitted_docker_and_methods ~ bayes,
+                   !submitterId %in% submitted_docker_and_methods ~ -1))
+
+
+ggplot(data = tidy_res) +
+  geom_boxplot(aes(x = reorder(participant, -bootstrappedScore, fun = median), y = log10(bootstrappedScore),
+                    color = cut(bayes, c(-2,-1,0, 3, 5,Inf), include.lowest = T, ordered_result = T, right = T)), outlier.shape = NA)+
+  coord_flip() +
+  scale_color_manual(values = c("#AA1155","#F8333C","#FCAB10","#2B9EB3"),
+                     name = "Bayes Factor",
+                     labels = c("Reference", "<3","3-5",">5")) +
+  labs(x = "Team/Participant", y = "log10(Bootstrapped RMSE)") +
+  theme_bw() +
+  theme(axis.text = element_text(size = 10))
 
 ```
 
 ```{r}
 sessionInfo()
+
 ```

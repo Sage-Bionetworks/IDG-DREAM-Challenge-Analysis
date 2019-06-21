@@ -90,3 +90,28 @@ ggplot(aiwic_pred) +
   labs(x = "AI Winter is Coming R2", y = "AI Winter is Coming py script")
 
 mean(aiwic_pred$aiwic_dock-aiwic_pred$aiwic_sub)
+
+
+#r1_template <- synGet("syn16809883")$path %>% read.csv() 
+
+r2_template <- synGet("syn16809885")$path %>% read.csv() 
+
+# all_template <- bind_rows(r1_template,r2_template)
+
+all_template <- r2_template
+compounds <- select(all_template, Compound_SMILES, Compound_InchiKeys, Compound_Name) %>% distinct()
+
+kinases <- select(all_template, UniProt_Id, Entrez_Gene_Symbol, DiscoveRx_Gene_Symbol) %>% distinct()
+
+mat <- matrix(1, nrow=length(unique(compounds$Compound_SMILES)), ncol=length(unique(kinases$UniProt_Id)))
+colnames(mat) <- unique(kinases$UniProt_Id)
+rownames(mat) <- unique(compounds$Compound_SMILES)
+mat <- as.data.frame(mat) %>% rownames_to_column("Compound_SMILES") %>% gather(-Compound_SMILES, key = UniProt_Id, value = foo) %>% select(-foo)
+
+pairs <- mat %>% left_join(compounds) %>% left_join(kinases) %>% select(colnames(all_template)) %>% distinct()
+
+pairwise_from_guru <- synGet("syn18774741")$path %>% read.csv() 
+
+
+write_csv(pairs, "pairwise_r2.csv")
+synStore(File("pairwise_r2.csv", parentId="syn15667963"))
