@@ -1,0 +1,220 @@
+---
+title: "Compare R1 predictions to random and theoretical upper bound"
+output:
+  html_document:
+    df_print: paged
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+###Setup
+
+```{r}
+library(reticulate)
+library(tidyverse)
+
+use_python("/usr/local/bin/python2")
+synapse <- import("synapseclient")
+syn <- synapse$Synapse()
+synutils <- synapse$utils
+syn$login()
+source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Drug-Kinase-Challenge/master/round1b/score/bin/evaluation_metrics_python2.py')
+
+spearman_py <- function(gold, pred){
+  gold_py <- gold %>% np_array()
+  pred_py <- pred %>% np_array()
+  spearman(gold_py, pred_py)
+}
+
+rmse_py <- function(gold, pred){
+  gold_py <- gold %>% np_array()
+  pred_py <- pred %>% np_array()
+  rmse(gold_py, pred_py)
+}
+
+set.seed(90210)
+
+# template <- syn$get("syn16809885")$path %>% read_csv
+# dtc <- syn$get("syn18061798")$path %>% read_csv
+# filt <- dtc %>% filter(standard_type == "PKD", standard_relation == "=")
+
+gold <- syn$get("syn16809884")$path %>% read_csv
+
+
+fv <- syn$tableQuery("select id, submissionId AS objectId, teamId, userId from syn17051994", includeRowIdAndRowVersion = F)$filepath %>%
+  read_csv
+
+sub_id_map <- syn$get("syn17054264")$path %>% read_csv %>% select(objectId, submitterId)
+
+leaderboard <- syn$tableQuery("SELECT objectId, rmse, spearman FROM syn17054253", includeRowIdAndRowVersion = F)$filepath %>% 
+  read_csv%>% full_join(fv) %>% left_join(sub_id_map)
+
+get_user_or_team_names <- function(id){
+ name <- try(syn$getTeam(id)$name, silent = T) ##try to get the team name from id 
+ if(class(name)=='try-error'){ ##if it is not a team, will return error, so then try to get user profile
+ try({
+   prof <- syn$getUserProfile(id = id) ##get first and last name
+   fn <- prof$firstName
+   ln <- prof$lastName
+   if(is.null(fn) | is.null(ln)){
+     un <- prof$userName
+     return(un) 
+   }else if(fn == "" | ln == ""){ ##if empty, get username instead
+     un <- prof$userName
+     return(un)
+   }else{
+     return(paste(fn, ln))
+   }
+   })
+   }else{
+     return(name)
+   }
+}
+
+names<- sapply(unique(leaderboard$submitterId), get_user_or_team_names)
+names(names) <- unique(leaderboard$submitterId)
+names_df <- as.data.frame(names) %>% 
+  magrittr::set_colnames("participant") %>% 
+  rownames_to_column("submitterId") %>% 
+  mutate(submitterId= as.numeric(submitterId)) %>% 
+  mutate(participant = as.character(participant))
+
+names_df$participant[names_df$submitterId=="3383197"] <- "Prospectors"
+
+
+```
+
+### Define best predictions for R1
+
+For each metric.
+Note, we'll not actually do this, instead we will look at all submissions
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# 
+# best_spearman_by_team <- leaderboard %>%
+#   group_by(submitterId) %>%
+#   top_n(1, spearman) %>%
+#   ungroup() %>%
+#   arrange(-spearman) %>% 
+#   left_join(names_df) 
+# 
+# best_rmse_by_team <- leaderboard %>%
+#   group_by(submitterId) %>%
+#   top_n(1, rmse) %>%
+#   ungroup() %>%
+#   arrange(-rmse) %>% 
+#   left_join(names_df) 
+
+
+spearman_by_team <- leaderboard %>%
+  arrange(-spearman) %>%
+  left_join(names_df)
+
+rmse_by_team <- leaderboard %>%
+  arrange(-rmse) %>%
+  left_join(names_df)
+
+```
+
+### Compare predictions to random 
+
+Random prediction distribution made by sampling the test data Kds 10000 times and assigning to the test comparisons, scoring each sample, and plotting the distributions of the scores. 
+
+We can then plot the actual scores on the x-axis to compare which fall above (spearman) or below (rmse) the distribution, suggesting they did better than random. 
+
+```{r}
+vec_sp <- sapply(1:10000, function(x){
+  foo<- sample(gold$`pKd_[M]`, nrow(gold))
+  spearman_py(foo, gold$`pKd_[M]`)
+}) %>% as.data.frame() %>% set_names(c('spearman'))
+
+vec_rm <- sapply(1:10000, function(x){
+  foo<- sample(gold$`pKd_[M]`, nrow(gold))
+  rmse_py(foo, gold$`pKd_[M]`) 
+}) %>% as.data.frame() %>% set_names(c('rmse'))
+
+p1 <- ggplot() +
+  geom_density(data = vec_sp, aes(x = spearman),color = "#E5C8AC" ,fill = "#E5C8AC", alpha = .5 , bw = "sj") +
+  geom_point(data = spearman_by_team, aes(x=spearman),  color =  "#DB5700",  y = 0) +
+  theme_bw() + 
+  annotate(geom = "text", x = 0.4, y = 6,
+             label = paste0(signif(length(spearman_by_team$spearman[spearman_by_team$spearman>max(vec_sp)])/length(spearman_by_team$rmse)*100, 2), "% of submissions \nbetter than random") ,
+             size = 5) +
+  theme(axis.text = element_text(size = 12)) +
+  labs(x = "Spearman Correlation", y= "Density")
+  
+p2 <- ggplot() +
+  geom_density(data = vec_rm, aes(x = log(rmse)), color =  "#ABDDDE",  fill = "#ABDDDE", alpha = .5, bw = "sj") +
+  geom_point(data = rmse_by_team %>% filter(rmse < 5), aes(x=log(rmse)), color = "#046C9A", y = 0) +
+  theme_bw() + 
+  annotate(geom = "text", x = 0, y = 10,
+             label = paste0(signif(length(rmse_by_team$rmse[rmse_by_team$rmse<min(vec_rm)])/length(rmse_by_team$rmse)*100, 2), "% of submissions \nbetter than random") ,
+             size = 5) +
+  xlim(c(-.25,0.75)) +
+  theme(axis.text = element_text(size = 12)) +
+  labs(x = "log10(RMSE)", y= "Density")
+
+
+gridExtra::grid.arrange(p1,p2)
+
+```
+
+For the upper bound, we are looking at all replicates in DTC for all drugs tested in R2 (different pairs though, since it's already public data). Balaguru provided this data.
+
+```{r}
+replicates <- syn$get('syn20448785')$path %>% ##r1 kinases and compounds from r2 data
+  read_tsv %>% 
+  spread(Pubmed_id, pKd) %>% 
+  filter(Compound_InchiKeys %in% gold$Compound_InchiKeys | UniProt_Id %in% gold$UniProt_Id)
+
+replicates_all_r1 <- syn$get("syn20487871")$path %>% ##remaining DTC pairs provided seperately
+  read_tsv %>% 
+  spread(Pubmed_id, pKd) %>% 
+  bind_rows(replicates) %>% 
+  distinct()
+
+
+vec_sp_max <- sapply(1:10000, function(x){
+  foo<- replicates %>% sample_n(nrow(replicates), replace = T)
+  spearman_py(foo$`15711537`, foo$`22037378`)
+}) %>% as.data.frame() %>% set_names(c('spearman'))
+
+vec_rm_max <- sapply(1:10000, function(x){
+  foo<- replicates %>% sample_n(nrow(replicates), replace = T)
+  rmse_py(foo$`15711537`, foo$`22037378`)
+}) %>% as.data.frame() %>% set_names(c('rmse'))
+
+
+p1 <- ggplot() +
+  geom_density(data = vec_sp, aes(x = spearman),color = "#E5C8AC" ,fill = "#E5C8AC", alpha = .2 , bw = "sj") +
+  geom_density(data = vec_sp_max, aes(x = spearman), color =  "#E5C8AC",  fill = "#E5C8AC", alpha = .9, bw = "sj") +
+  geom_point(data = spearman_by_team, aes(x=spearman),  color =  "#DB5700",  y = 0) +
+  theme_bw() + 
+  # annotate(geom = "text", x = 0.4, y = 6,
+  #            label = paste0(signif(length(spearman_by_team$spearman[spearman_by_team$spearman>max(vec_sp)])/length(spearman_by_team$rmse)*100, 2), "% of submissions \nbetter than random") ,
+  #             size = 5) +
+  theme(axis.text = element_text(size = 12)) +
+  labs(x = "Spearman Correlation", y= "Density") +
+ xlim(c(-.25, 1))
+  
+p2 <- ggplot() +
+  geom_density(data = vec_rm, aes(x = rmse), color =  "#ABDDDE",  fill = "#ABDDDE", alpha = .2, bw = "sj") +
+  geom_density(data = vec_rm_max, aes(x = rmse), color =  "#ABDDDE",  fill = "#ABDDDE", alpha = .9, bw = "sj") +
+  geom_point(data = rmse_by_team %>% filter(rmse < 2), aes(x=rmse), color = "#046C9A", y = 0) +
+  theme_bw() + 
+   # annotate(geom = "text", x = 0, y = 10,
+   #            label = paste0(signif(length(rmse_by_team$rmse[rmse_by_team$rmse<min(vec_rm)])/length(rmse_by_team$rmse)*100, 2), "% of submissions \nbetter than random") ,
+              # size = 5) +
+  theme(axis.text = element_text(size = 12)) +
+  labs(x = "RMSE", y= "Density") +
+  xlim(c(0, 2))
+
+
+gridExtra::grid.arrange(p1,p2)
+
+
+print(spearman_by_team$objectId[spearman_by_team$spearman>max(vec_sp)]) 
+print(rmse_by_team$objectId[rmse_by_team$rmse<min(vec_rm)]) 
+
+
+```
+

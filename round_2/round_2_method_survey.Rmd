@@ -35,7 +35,8 @@ survey <- read_csv(synGet("syn19320609")$path) %>%
   mutate(team_survey = team) %>% 
   mutate(objectId = as.character(objectId)) %>% 
   select(-team) %>% 
-  mutate(training_data_types = training_data_simple)
+  mutate(training_bioactivity_datasource = training_data_simple,
+         broad_learning_approach = broad_approach)
   
 
 survey_df <- left_join(survey, leaderboard) #%>% 
@@ -44,17 +45,39 @@ survey_df <- left_join(survey, leaderboard) #%>%
   # ungroup() %>%
   # arrange(-spearman) %>%
   # add_column(rank = group_indices(., -spearman))
-
-plot_categorical_vars <- function(variable, metric){
-  ggplot(survey_df %>% filter(rmse < 5) %>% 
+# for test
+# variable <- interesting_vars[1]
+# metric <- "spearman"
+plot_categorical_vars <- function(variable, metric, kruskal_wallis = F){
+  
+  df <- survey_df %>% filter(rmse < 2) %>% 
            arrange(get(variable), desc(get(metric))) %>% 
-           mutate(objectId = factor(objectId, levels = objectId))) + 
-  geom_bar(aes(x = objectId, y = get(metric), fill = get(variable)), stat = "identity") +
-  theme_bw() +
-  scale_fill_manual(lettercase::str_title_case(variable), values = c(wes_palette("Darjeeling1"),wes_palette("Darjeeling2"),wes_palette("IsleofDogs1"))) +
-  labs(x = "Submission", y = lettercase::str_title_case(metric))+
-    
-  theme(axis.text.x = element_blank())
+           mutate(objectId = factor(objectId, levels = objectId)) %>% 
+           mutate(var_fact = factor(get(variable), levels = unique(get(variable))))
+
+  if(kruskal_wallis == T){
+    sum <- kruskal.test(get(metric) ~ var_fact, data = df) 
+    p <- sum$p.value
+    p.adj <- p %>% p.adjust(p = ., n = length(interesting_vars)*2, method = "BH") %>% round(3) #2 metrics being tested
+  
+    ggplot(df) + 
+      geom_bar(aes(x = objectId, y = get(metric), fill = get(variable)), stat = "identity") +
+      theme_bw() +
+      scale_fill_manual(lettercase::str_title_case(variable), values =
+                    c(wes_palette("Darjeeling1"),wes_palette("Darjeeling2"),wes_palette("IsleofDogs1"))) +
+      labs(x = "Submission", y = lettercase::str_title_case(metric))+
+       annotate("text",  x=Inf, y = Inf, label = "Some text", vjust=1, hjust=1)
+      annotate(title = paste0("Kruskal-Wallis \np-value: ", round(p,3), "\nBH p-value: ", p.adj)) +
+      theme(axis.text.x = element_blank())
+  }else{
+    ggplot(df) + 
+      geom_bar(aes(x = objectId, y = get(metric), fill = get(variable)), stat = "identity") +
+      theme_bw() +
+      scale_fill_manual(lettercase::str_title_case(variable), values =
+                    c(wes_palette("Darjeeling1"),wes_palette("Darjeeling2"),wes_palette("IsleofDogs1"))) +
+      labs(x = "Submission", y = lettercase::str_title_case(metric))+
+      theme(axis.text.x = element_blank())
+  }
 }
 ```
 
@@ -66,9 +89,9 @@ Let's look at the following survey answers (`interesting vars`) and how they cor
 
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 
-interesting_vars <- c("broad_approach","training_data_simple","multidose_bioactivity_types",     "singledose_bioactivity_types","training_strategy","protein_descriptor_types","ATP_binding_pockets", "chemical_fingerprint_types","compound_structural_information","ensemble","optimize_for_R2_metrics", "round1b_helpful" )
+interesting_vars <- c("broad_learning_approach","training_bioactivity_datasource","multidose_bioactivity_types",     "singledose_bioactivity_types","training_strategy","protein_descriptor_types","ATP_binding_pockets", "chemical_fingerprint_types","compound_structural_information","ensemble","optimize_for_R2_metrics", "round1b_helpful" )
 
-plots_sp <- lapply(interesting_vars, plot_categorical_vars, metric = "spearman")
+plots_sp <- lapply(interesting_vars, plot_categorical_vars, metric = "spearman", kruskal_wallis = T)
 
 plots_sp
 
@@ -80,20 +103,39 @@ plots_sp
 And repeat for RMSE:
 
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
-plots_rm <- lapply(interesting_vars, plot_categorical_vars, metric = "rmse")
+plots_rm <- lapply(interesting_vars, plot_categorical_vars, metric = "rmse", kruskal_wallis = T)
 
 plots_rm
 ```
 
 
 ```{r eval=FALSE, fig.width=8, include=FALSE}
-
 ##this doesn't render right in markdown, but use this for figure for paper. 
 
+plots_rm <- lapply(interesting_vars, plot_categorical_vars, metric = "rmse")
+
+plots_sp <- lapply(interesting_vars, plot_categorical_vars, metric = "spearman")
+
+th <- theme(legend.justification = c(0.5,1))
+
 pdf("r2_methods.pdf",width =15, height= 10)
-cowplot::plot_grid(plots_sp[1][[1]], plots_rm[1][[1]],
-                   plots_sp[2][[1]], plots_rm[2][[1]],
-                   plots_sp[3][[1]], plots_rm[3][[1]], 
+cowplot::plot_grid(plots_sp[1][[1]] + th, plots_rm[1][[1]] + th,
+                   plots_sp[2][[1]] + th, plots_rm[2][[1]] + th,
+                   plots_sp[3][[1]] +th , plots_rm[3][[1]] + th, 
+                   labels = c("A","B","C","D","E","F"), ncol=2, align = "v")
+
+dev.off()
+
+plots_rm <- lapply(interesting_vars, plot_categorical_vars, metric = "rmse", kruskal_wallis = T)
+
+plots_sp <- lapply(interesting_vars, plot_categorical_vars, metric = "spearman", kruskal_wallis = T)
+
+th <- theme(legend.justification = c(0.5,1))
+
+pdf("r2_methods_with_significance.pdf",width =15, height= 10)
+cowplot::plot_grid(plots_sp[1][[1]] + th, plots_rm[1][[1]] + th,
+                   plots_sp[2][[1]] + th, plots_rm[2][[1]] + th,
+                   plots_sp[3][[1]] +th , plots_rm[3][[1]] + th, 
                    labels = c("A","B","C","D","E","F"), ncol=2, align = "v")
 
 dev.off()
@@ -104,7 +146,7 @@ We can also look at this type of data on a scatterplot, by plotting Spearman on 
 
 
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
-interesting_vars <- c("broad_approach","training_data_simple","multidose_bioactivity_types",     "singledose_bioactivity_types","training_strategy","protein_descriptor_types","ATP_binding_pockets", "chemical_fingerprint_types","compound_structural_information","ensemble","optimize_for_R2_metrics" )
+interesting_vars <- c("broad_learning_approach","training_bioactivity_datasource","multidose_bioactivity_types",     "singledose_bioactivity_types","training_strategy","protein_descriptor_types","ATP_binding_pockets", "chemical_fingerprint_types","compound_structural_information","ensemble","optimize_for_R2_metrics" )
 
 plot_categorical_vars_scatterplot <- function(variable){
   ggplot(survey_df %>% filter(rmse < 5))+ 
