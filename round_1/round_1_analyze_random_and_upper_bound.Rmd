@@ -12,6 +12,8 @@ date: "`r format(Sys.time(), '%d %B, %Y')`"
 library(reticulate)
 library(tidyverse)
 
+set.seed(13048345)
+
 use_python("/usr/local/bin/python2")
 synapse <- import("synapseclient")
 syn <- synapse$Synapse()
@@ -160,6 +162,8 @@ gridExtra::grid.arrange(p1,p2)
 
 For the upper bound, we are looking at all replicates in DTC for all drugs tested in R2 (different pairs though, since it's already public data). Balaguru provided this data.
 
+After discussion in the group, we decided to filter out the replicates where pKd=5 so that they only represent ~35% of the final dataset, which is closer in proportion to the test R1 ataseT where pKd=5. This is to get a better estimate of the max upper bound, particularly RMSE, which is substantially affected by a large proportion of pKd =5 values.
+
 ```{r}
 replicates <- syn$get('syn20448785')$path %>% ##r1 kinases and compounds from r2 data
   read_tsv %>% 
@@ -172,14 +176,21 @@ replicates_all_r1 <- syn$get("syn20487871")$path %>% ##remaining DTC pairs provi
   bind_rows(replicates) %>% 
   distinct()
 
+replicates_5 <- filter(replicates_all_r1, `15711537` == 5 & `22037378` == 5) %>% 
+  sample_n(111) 
+
+replicates_subset <- replicates %>% 
+  filter(`15711537` > 5 | `22037378` > 5) %>% 
+  bind_rows(replicates_5) 
+
 
 vec_sp_max <- sapply(1:10000, function(x){
-  foo<- replicates %>% sample_n(nrow(replicates), replace = T)
+  foo<- replicates_subset %>% sample_n(nrow(gold), replace = T)
   spearman_py(foo$`15711537`, foo$`22037378`)
 }) %>% as.data.frame() %>% set_names(c('spearman'))
 
 vec_rm_max <- sapply(1:10000, function(x){
-  foo<- replicates %>% sample_n(nrow(replicates), replace = T)
+  foo<- replicates_subset %>% sample_n(nrow(gold), replace = T)
   rmse_py(foo$`15711537`, foo$`22037378`)
 }) %>% as.data.frame() %>% set_names(c('rmse'))
 
@@ -187,23 +198,27 @@ vec_rm_max <- sapply(1:10000, function(x){
 p1 <- ggplot() +
   geom_density(data = vec_sp, aes(x = spearman),color = "#E5C8AC" ,fill = "#E5C8AC", alpha = .2 , bw = "sj") +
   geom_density(data = vec_sp_max, aes(x = spearman), color =  "#E5C8AC",  fill = "#E5C8AC", alpha = .9, bw = "sj") +
-  geom_point(data = spearman_by_team, aes(x=spearman),  color =  "#DB5700",  y = 0) +
+  geom_point(data = spearman_by_team %>% 
+               filter(spearman>max(vec_sp)),
+             aes(x=spearman),  color =  "#DB5700",  y = 0) +
+  geom_point(data = spearman_by_team %>% 
+               filter(spearman<=max(vec_sp)),
+             aes(x=spearman),  color =  "#DB5700",  y = 0, shape = 1, alpha = 0.7) +
   theme_bw() + 
-  # annotate(geom = "text", x = 0.4, y = 6,
-  #            label = paste0(signif(length(spearman_by_team$spearman[spearman_by_team$spearman>max(vec_sp)])/length(spearman_by_team$rmse)*100, 2), "% of submissions \nbetter than random") ,
-  #             size = 5) +
   theme(axis.text = element_text(size = 12)) +
   labs(x = "Spearman Correlation", y= "Density") +
  xlim(c(-.25, 1))
   
 p2 <- ggplot() +
-  geom_density(data = vec_rm, aes(x = rmse), color =  "#ABDDDE",  fill = "#ABDDDE", alpha = .2, bw = "sj") +
-  geom_density(data = vec_rm_max, aes(x = rmse), color =  "#ABDDDE",  fill = "#ABDDDE", alpha = .9, bw = "sj") +
-  geom_point(data = rmse_by_team %>% filter(rmse < 2), aes(x=rmse), color = "#046C9A", y = 0) +
+  geom_density(data = vec_rm, aes(x = rmse), color =  "#E5C8AC",  fill = "#E5C8AC", alpha = .2, bw = "sj") +
+  geom_density(data = vec_rm_max, aes(x = rmse), color =  "#E5C8AC",  fill = "#E5C8AC", alpha = .9, bw = "sj") +
+  geom_point(data = rmse_by_team %>% 
+               filter(rmse<min(vec_rm) & rmse < 2),
+             aes(x=rmse),  color =  "#DB5700",  y = 0) +
+  geom_point(data = rmse_by_team %>% 
+               filter(rmse>=min(vec_rm)),
+             aes(x=rmse),  color =  "#DB5700",  y = 0, shape = 1, alpha = 0.7) +  theme_bw() + 
   theme_bw() + 
-   # annotate(geom = "text", x = 0, y = 10,
-   #            label = paste0(signif(length(rmse_by_team$rmse[rmse_by_team$rmse<min(vec_rm)])/length(rmse_by_team$rmse)*100, 2), "% of submissions \nbetter than random") ,
-              # size = 5) +
   theme(axis.text = element_text(size = 12)) +
   labs(x = "RMSE", y= "Density") +
   xlim(c(0, 2))
@@ -218,3 +233,60 @@ print(rmse_by_team$objectId[rmse_by_team$rmse<min(vec_rm)])
 
 ```
 
+Same fig as above but with theme for paper. Doesn't render well in markdown. 
+
+```{r}
+library(Cairo)
+
+p1 <- ggplot() +
+  geom_density(data = vec_sp, aes(x = spearman),color = "#E5C8AC" ,fill = "#E5C8AC", alpha = .2 , bw = "sj") +
+  geom_density(data = vec_sp_max, aes(x = spearman), color =  "#E5C8AC",  fill = "#E5C8AC", alpha = .9, bw = "sj") +
+  geom_point(data = spearman_by_team %>% 
+               filter(spearman>max(vec_sp)),
+             aes(x=spearman),  color =  "#DB5700",  y = 0) +
+  geom_point(data = spearman_by_team %>% 
+               filter(spearman<=max(vec_sp)),
+             aes(x=spearman),  color =  "#DB5700",  y = 0, shape = 1, alpha = 0.7) +
+  theme_bw() + 
+  labs(x = "Spearman Correlation", y= "Density") +
+  xlim(c(-.25, 1)) +
+  ylim(c(0, 30)) +
+  theme(axis.text = element_text(size = 40), # face = "bold"
+        axis.title = element_text(size = 40),
+        axis.title.x = element_blank()
+  ) + 
+  theme(legend.position = "none") + 
+  theme(plot.margin = unit(c(1,0.5,0.5,0.5), "cm"))
+
+ggsave("figure_3_spearman_r1.pdf",  device = cairo_pdf,
+              width = 11.69, height = 4.135, units = "in")
+  
+p2 <- ggplot() +
+  geom_density(data = vec_rm, aes(x = rmse), color =  "#E5C8AC",  fill = "#E5C8AC", alpha = .2, bw = "sj") +
+  geom_density(data = vec_rm_max, aes(x = rmse), color =  "#E5C8AC",  fill = "#E5C8AC", alpha = .9, bw = "sj") +
+  geom_point(data = rmse_by_team %>% 
+               filter(rmse<min(vec_rm) & rmse < 2),
+             aes(x=rmse),  color =  "#DB5700",  y = 0) +
+  geom_point(data = rmse_by_team %>% 
+               filter(rmse>=min(vec_rm)),
+             aes(x=rmse),  color =  "#DB5700",  y = 0, shape = 1, alpha = 0.7) +  theme_bw() + 
+  theme_bw() + 
+  labs(x = "RMSE", y= "Density") +
+  xlim(c(0, 2)) +
+  ylim(c(0, 18)) +
+  theme(axis.text = element_text(size = 40), # face = "bold"
+        axis.title = element_text(size = 40),
+        axis.title.x = element_blank()
+  ) + 
+  theme(legend.position = "none") + 
+  theme(plot.margin = unit(c(1,0.5,0.5,0.5), "cm"))
+
+ggsave("figure_3_rmse_r1.pdf",  device = cairo_pdf,
+              width = 11.69, height = 4.135, units = "in")
+
+p1
+p2
+
+```
+
+```

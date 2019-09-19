@@ -269,7 +269,7 @@ mean_results_rmse_paper <- apply(mean_test %>% select(7:(ncol(mean_test)-1),`pKd
 Now stick them all together into one data frame and plot them to get an idea of relative performance. 
 
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
-
+ 
 ensemble_scores <- bind_rows(median_results_spearman, mean_results_spearman, rank_results_spearman, mean_results_rmse_paper)  %>%  
   set_names(c("ensemble_model", "score", "iteration")) %>% 
   mutate(iteration = as.numeric(iteration)) %>% 
@@ -348,12 +348,12 @@ ggplot(data = ensemble_scores_pap %>%
          filter(grepl("*spearman_mean*", ensemble_model)) %>% 
          filter(score > 0.45) %>% 
            filter(!is.na(label)),
-         aes(x= iteration, y = score, color = forcats::fct_inorder(label)), size = 2.5) +
+         aes(x= iteration, y = score, color = forcats::fct_inorder(label)), size = 5) +
    geom_point(data = ensemble_scores_pap %>% 
          filter(grepl("*rmse_mean*", ensemble_model)) %>% 
          filter(score <2) %>% 
          filter(!is.na(label)),
-         aes(x= iteration, y = score/scal_fact, color = forcats::fct_inorder(label)), size = 2.5) +
+         aes(x= iteration, y = score/scal_fact, color = forcats::fct_inorder(label)), size = 5) +
   scale_color_manual(values = c("#307905",
                                 "#00b8e6",
                                 "#0000FF",
@@ -365,11 +365,21 @@ ggplot(data = ensemble_scores_pap %>%
                                 '3 + Oliver Labayle')) +
   scale_linetype_manual("",values=c("RMSE"=2,"Spearman"=1)) +
   scale_y_continuous(sec.axis = sec_axis(~.*scal_fact, name = "RMSE")) +
-  theme_bw() +
   labs(x = "Number of Top Models", y = "Spearman Correlation") +
-  theme(axis.text = element_text(size = 14),
-        axis.title = element_text(size = 14))
+  theme_bw() +
+  theme(
+   plot.title = element_text(size = 30,  face = "bold", hjust = 0.5),
+   axis.text = element_text(size = 30), 
+   axis.title = element_text(size = 30),
+   legend.title = element_text(size = 30),
+   legend.text = element_text(size = 30),
+   plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm")
+  )
 
+library(Cairo)
+
+ggsave("figure_4d.pdf", 
+       width = 15, height = 8.27, units = "in", device = cairo_pdf)
 ```
 
 plot the best vs gold standard where the 4th ensemble is the best: 

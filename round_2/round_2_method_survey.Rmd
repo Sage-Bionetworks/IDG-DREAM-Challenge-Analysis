@@ -48,6 +48,7 @@ survey_df <- left_join(survey, leaderboard) #%>%
 # for test
 # variable <- interesting_vars[1]
 # metric <- "spearman"
+
 plot_categorical_vars <- function(variable, metric, kruskal_wallis = F){
   
   df <- survey_df %>% filter(rmse < 2) %>% 
@@ -58,7 +59,8 @@ plot_categorical_vars <- function(variable, metric, kruskal_wallis = F){
   if(kruskal_wallis == T){
     sum <- kruskal.test(get(metric) ~ var_fact, data = df) 
     p <- sum$p.value
-    p.adj <- p %>% p.adjust(p = ., n = length(interesting_vars)*2, method = "BH") %>% round(3) #2 metrics being tested
+    p.adj <- p %>% p.adjust(p = ., n = length(interesting_vars)*2, method = "BH") %>% round(3) #2 metrics being tested, so mulitply by 2 since function is run once per metric
+
   
     ggplot(df) + 
       geom_bar(aes(x = objectId, y = get(metric), fill = get(variable)), stat = "identity") +
@@ -66,8 +68,7 @@ plot_categorical_vars <- function(variable, metric, kruskal_wallis = F){
       scale_fill_manual(lettercase::str_title_case(variable), values =
                     c(wes_palette("Darjeeling1"),wes_palette("Darjeeling2"),wes_palette("IsleofDogs1"))) +
       labs(x = "Submission", y = lettercase::str_title_case(metric))+
-       annotate("text",  x=Inf, y = Inf, label = "Some text", vjust=1, hjust=1)
-      annotate(title = paste0("Kruskal-Wallis \np-value: ", round(p,3), "\nBH p-value: ", p.adj)) +
+      ggtitle(paste0("Kruskal-Wallis \np-value: ", round(p,3), "\nBH p-value: ", p.adj)) +
       theme(axis.text.x = element_blank())
   }else{
     ggplot(df) + 
@@ -75,7 +76,7 @@ plot_categorical_vars <- function(variable, metric, kruskal_wallis = F){
       theme_bw() +
       scale_fill_manual(lettercase::str_title_case(variable), values =
                     c(wes_palette("Darjeeling1"),wes_palette("Darjeeling2"),wes_palette("IsleofDogs1"))) +
-      labs(x = "Submission", y = lettercase::str_title_case(metric))+
+      labs(x = "Submission", y = lettercase::str_title_case(metric)) +
       theme(axis.text.x = element_blank())
   }
 }
@@ -91,7 +92,7 @@ Let's look at the following survey answers (`interesting vars`) and how they cor
 
 interesting_vars <- c("broad_learning_approach","training_bioactivity_datasource","multidose_bioactivity_types",     "singledose_bioactivity_types","training_strategy","protein_descriptor_types","ATP_binding_pockets", "chemical_fingerprint_types","compound_structural_information","ensemble","optimize_for_R2_metrics", "round1b_helpful" )
 
-plots_sp <- lapply(interesting_vars, plot_categorical_vars, metric = "spearman", kruskal_wallis = T)
+plots_sp <- lapply(interesting_vars, plot_categorical_vars, metric = "spearman", kruskal_wallis = F)
 
 plots_sp
 
@@ -103,7 +104,7 @@ plots_sp
 And repeat for RMSE:
 
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
-plots_rm <- lapply(interesting_vars, plot_categorical_vars, metric = "rmse", kruskal_wallis = T)
+plots_rm <- lapply(interesting_vars, plot_categorical_vars, metric = "rmse", kruskal_wallis = F)
 
 plots_rm
 ```
@@ -112,9 +113,9 @@ plots_rm
 ```{r eval=FALSE, fig.width=8, include=FALSE}
 ##this doesn't render right in markdown, but use this for figure for paper. 
 
-plots_rm <- lapply(interesting_vars, plot_categorical_vars, metric = "rmse")
+plots_rm <- lapply(interesting_vars[1:3], plot_categorical_vars, metric = "rmse")
 
-plots_sp <- lapply(interesting_vars, plot_categorical_vars, metric = "spearman")
+plots_sp <- lapply(interesting_vars[1:3], plot_categorical_vars, metric = "spearman")
 
 th <- theme(legend.justification = c(0.5,1))
 
@@ -126,9 +127,9 @@ cowplot::plot_grid(plots_sp[1][[1]] + th, plots_rm[1][[1]] + th,
 
 dev.off()
 
-plots_rm <- lapply(interesting_vars, plot_categorical_vars, metric = "rmse", kruskal_wallis = T)
+plots_rm <- lapply(interesting_vars[1:3], plot_categorical_vars, metric = "rmse", kruskal_wallis = T)
 
-plots_sp <- lapply(interesting_vars, plot_categorical_vars, metric = "spearman", kruskal_wallis = T)
+plots_sp <- lapply(interesting_vars[1:3], plot_categorical_vars, metric = "spearman", kruskal_wallis = T)
 
 th <- theme(legend.justification = c(0.5,1))
 

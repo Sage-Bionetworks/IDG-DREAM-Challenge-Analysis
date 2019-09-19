@@ -1,0 +1,249 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+library(reticulate)
+library(tidyverse)
+
+use_python("/usr/local/bin/python2")
+synapse <- import("synapseclient")
+syn <- synapse$Synapse()
+synutils <- synapse$utils
+syn$login()
+source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Drug-Kinase-Challenge/master/round1b/score/bin/evaluation_metrics_python2.py')
+
+gold <- syn$get("syn18421225")$path %>% read_csv %>%
+  mutate(comp = paste0(Compound_InchiKeys,"_",UniProt_Id,"_",DiscoveRx_Gene_Symbol)) 
+
+spearman_py <- function(gold, pred){
+  gold_py <- gold %>% np_array()
+  pred_py <- pred %>% np_array()
+  spearman(gold_py, pred_py)
+}
+
+rmse_py <- function(gold, pred){
+  gold_py <- gold %>% np_array()
+  pred_py <- pred %>% np_array()
+  rmse(gold_py, pred_py)
+}
+```
+
+```{r}
+
+ids <- tibble::tribble(
+  ~id, ~threshold, ~random_iteration, ~is_random, ~exp_label, ~no_of_removed,
+  "syn20543796", 0.5, 1, "Random Control", "0.5", 1530,
+  "syn20543798", 0.5, 2, "Random Control", "0.5", 1530,
+  "syn20543799", 0.5, 3, "Random Control", "0.5", 1530,
+  "syn20543800", 0.5, 4, "Random Control", "0.5", 1530,
+  "syn20543801", 0.5, 5, "Random Control", "0.5", 1530,
+  "syn20543788", 0.5, NA, "Dropout Test", "0.5", 1530,
+  "syn20543828", 0.7, 1, "Random Control", "0.7", 330,
+  "syn20543829", 0.7, 2, "Random Control", "0.7", 330,
+  "syn20543830", 0.7, 3, "Random Control","0.7", 330,
+  "syn20543831", 0.7, 4, "Random Control","0.7", 330,
+  "syn20543832", 0.7, 5, "Random Control","0.7", 330,
+  "syn20543794", 0.7, NA, "Dropout Test","0.7", 330,
+  "syn20543834", 0.9, 1, "Random Control","0.9", 56,
+  "syn20543835", 0.9, 2, "Random Control","0.9", 56,
+  "syn20543837", 0.9, 3, "Random Control","0.9", 56,
+  "syn20543838", 0.9, 4, "Random Control","0.9", 56,
+  "syn20543839", 0.9, 5, "Random Control","0.9", 56,
+  "syn20543795", 0.9, NA, "Dropout Test","0.9", 56,
+  "syn18513191", 1, NA, "Submitted Predictions", "R2 Submission", 0, 
+  "syn20546407", 0.4, NA, "Dropout Test","0.4", 3156,
+  "syn20564864", 0.4, 1, "Random Control","0.4", 3156,
+  "syn20564865", 0.4, 2, "Random Control","0.4", 3156, 
+  "syn20564866", 0.4, 3, "Random Control","0.4", 3156,
+  "syn20564867", 0.4, 4, "Random Control","0.4", 3156,
+  "syn20564868", 0.4, 5, "Random Control","0.4", 3156,
+  "syn20546408", 0.6, NA, "Dropout Test","0.6", 642,
+  "syn20564870", 0.6, 1, "Random Control","0.6", 642,
+  "syn20564871", 0.6, 2, "Random Control","0.6", 642,
+  "syn20564872", 0.6, 3, "Random Control","0.6", 642,
+  "syn20564873", 0.6, 4, "Random Control","0.6", 642,
+  "syn20564874", 0.6, 5, "Random Control","0.6", 642,
+  "syn20546409", 0.8, NA, "Dropout Test","0.8", 136,
+  "syn20564875", 0.8, 1, "Random Control","0.8", 136,
+  "syn20564876", 0.8, 2, "Random Control","0.8", 136,
+  "syn20564877", 0.8, 3, "Random Control","0.8", 136,
+  "syn20564878", 0.8, 4, "Random Control","0.8", 136,
+  "syn20564879", 0.8, 5, "Random Control","0.8", 136,
+  # "syn20546410", 1.0, NA, "Dropout Test", "1.0", "?",
+  "syn20564862", 0.2, NA, "Dropout Test","0.2", 37097,
+  "syn20574488", 0.2, 1, "Random Control","0.2", 37097,
+  "syn20574490", 0.2, 2, "Random Control","0.2", 37097,
+  "syn20574491", 0.2, 3, "Random Control","0.2", 37097,
+  "syn20574493", 0.2, 4, "Random Control","0.2", 37097,
+  "syn20574495", 0.2, 5, "Random Control","0.2", 37097,
+  "syn20564863", 0.3, NA, "Dropout Test","0.3", 9186,
+  "syn20574503", 0.3, 1, "Random Control","0.3", 9186,
+  "syn20574504", 0.3, 2, "Random Control","0.3", 9186,
+  "syn20574506", 0.3, 3, "Random Control","0.3", 9186,
+  "syn20574508", 0.3, 4, "Random Control","0.3", 9186,
+  "syn20574510", 0.3, 5, "Random Control","0.3", 9186,
+    "syn20683837", 0.15, 1, "Random Control","0.15", 57633,
+    "syn20683838", 0.15, 2, "Random Control","0.15", 57633,
+    "syn20683853", 0.15, 3, "Random Control","0.15", 57633,
+    "syn20689098", 0.15, 4, "Random Control","0.15", 57633,
+    "syn20683839", 0.15, 5, "Random Control","0.15", 57633,
+    "syn20683897", 0.15, NA, "Dropout Test","0.15", 57633)
+
+data <- lapply(ids$id, function(x){
+  syn$get(x)$path %>% read_csv()
+})
+
+
+names(data) <- ids$id
+
+data_df <- bind_rows(data, .id = "id") %>%
+  mutate(comp = paste0(Compound_InchiKeys,"_",UniProt_Id,"_",DiscoveRx_Gene_Symbol)) %>% 
+  filter(comp %in% gold$comp)
+
+data_df <- data_df %>% 
+  left_join(ids)
+
+data_df_summary <- data_df %>% 
+  # group_by(threshold, random_iteration, is_random, Compound_InchiKeys, UniProt_Id, DiscoveRx_Gene_Symbol) %>% 
+  # ungroup() %>% 
+  left_join(gold %>% select(Compound_InchiKeys, UniProt_Id, DiscoveRx_Gene_Symbol, `pKd_[M]`)) %>% 
+  group_by(exp_label, threshold, is_random, random_iteration, no_of_removed) %>% 
+  summarize(spearman = spearman_py(`pKd_[M]`,`pKd_[M]_pred`),rmse = rmse_py(`pKd_[M]`,`pKd_[M]_pred`)) %>% 
+  arrange(threshold)
+
+ggplot(data_df_summary)+
+  geom_point(aes(x =  spearman, y =  rmse, color = as.character(threshold), shape = is_random)) +
+  theme_bw() +
+  labs(x = "Spearman Correlation", y = "RMSE") +
+  scale_color_manual(name="Tanimoto Threshold", values =c("0.1" = "#A80000",
+                                                          "0.2" = "#C60968",
+                                                          "0.3" = "#C60968",
+                                                          "0.4" = "#C61D72",
+                                                          "0.5" ="#C64787", 
+                                                          "0.6" = "#C884A6",
+                                                          "0.7" = "#E8CEE5", 
+                                                          "0.8" = "#CCD5FF",
+                                                          "0.9" = "#8EA3FF", 
+                                                          "1" = "#637FFF",
+                                                          "R2" = "#00BFFF")) +
+  scale_shape_manual(name = "Random Control", values= c("Random Control"= 1,"Dropout Test"= 19,"Submitted Predictions"=20))
+
+ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)))+
+  geom_col(aes(x = exp_label, y = mean_rmse), fill = "#75B3CE", stat = 'identity') +
+  theme_bw() +
+  labs(y= "RMSE", x = "Tanimoto Threshold") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  facet_grid(cols = vars(is_random), space = "free", scales = "free") +
+  geom_text(aes(x = exp_label, y = mean_rmse, label = signif(no_of_removed/60462,2)), position = position_stack(vjust = 0.5), angle = 90, color = 'white') +
+  geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse))
+
+ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)))+
+  geom_col(aes(x = exp_label, y = mean_spearman), fill = "#E5A467", stat = 'identity') +
+  theme_bw() +
+  labs(y= "Spearman Correlation", x = "Tanimoto Threshold") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  facet_grid(cols = vars(is_random), space = "free", scales = "free") +
+  geom_text(aes(x = exp_label, y = mean_spearman, label = signif(no_of_removed/60462,3)), position = position_stack(vjust = 0.5), angle = 90, color = 'white') +
+    geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman))
+
+
+
+```
+
+```{r}
+ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)) %>% filter(threshold > 0.1))+
+  geom_col(aes(x = exp_label, y = mean_rmse), fill = "#75B3CE", stat = 'identity') +
+  theme_bw() +
+  labs(y= "RMSE", x = "Tanimoto Threshold") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  facet_grid(cols = vars(is_random), space = "free", scales = "free") +
+  geom_text(aes(x = exp_label, y = mean_rmse, label = no_of_removed), position = position_stack(vjust = 0.5), angle = 90, color = 'white') +
+  geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse))
+
+ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman))  %>% filter(threshold > 0.1))+
+  geom_col(aes(x = exp_label, y = mean_spearman), fill = "#E5A467", stat = 'identity') +
+  theme_bw() +
+  labs(y= "Spearman Correlation", x = "Tanimoto Threshold") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  facet_grid(cols = vars(is_random), space = "free", scales = "free") +
+  geom_text(aes(x = exp_label, y = mean_spearman, label = no_of_removed), position = position_stack(vjust = 0.5), angle = 90, color = 'white') +
+    geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman))
+
+spearman_scal_fact <- 60462*2
+rmse_scal_fact <- 60462
+  
+ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)) %>% filter(threshold > 0.1))+
+  geom_col(aes(x = exp_label, y = mean_rmse), fill = "#75B3CE", stat = 'identity') +
+  theme_bw() +
+  labs(y= "RMSE", x = "Tanimoto Threshold") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  facet_grid(cols = vars(is_random), space = "free", scales = "free") +
+  geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
+  geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse)) +
+  scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) 
+
+ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman))  %>% filter(threshold > 0.1))+
+  geom_col(aes(x = exp_label, y = mean_spearman), fill = "#E5A467", stat = 'identity') +
+  theme_bw() +
+  labs(y= "Spearman Correlation", x = "Tanimoto Threshold") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  facet_grid(cols = vars(is_random), space = "free", scales = "free") +
+    geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
+    geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman)) + 
+  scale_y_continuous(sec.axis = sec_axis(~.*2, name = "Proportion of removed pairs")) 
+  
+
+```
+
+```{r}
+
+library(Cairo)
+
+
+spearman_scal_fact <- 60462*2
+rmse_scal_fact <- 60462
+  
+ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)) %>% filter(threshold > 0.1))+
+  geom_bar(aes(x = exp_label, y = mean_rmse, fill = is_random), stat = 'identity', position = position_dodge(preserve = "single")) +
+  theme_bw() +
+  labs(y= "RMSE", x = "Tanimoto Threshold") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
+  geom_point(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
+  geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, color = is_random), position = 'dodge') +
+  scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) +
+  scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#75B3CE")) +
+  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#75B3CE"))
+
+
+ggsave("figure_3_spearman_r2.pdf",  device = cairo_pdf,
+              width = 11.69, height = 4.135, units = "in")
+  
+  
+
+ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)) %>% filter(threshold > 0.1))+
+  geom_bar(aes(x = exp_label, y = mean_spearman, fill = is_random), stat = 'identity', position = position_dodge(preserve = "single")) +
+  theme_bw() +
+  labs(y= "Spearman Correlation", x = "Tanimoto Threshold") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
+  geom_point(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
+  geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, color = is_random), position = 'dodge') +
+  scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) +
+  scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#E5A467")) +
+  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#E5A467"))
+
+
+ggsave("figure_3_rmse_r2.pdf",  device = cairo_pdf,
+              width = 11.69, height = 4.135, units = "in")
+
+
+```
