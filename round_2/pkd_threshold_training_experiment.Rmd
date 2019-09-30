@@ -5,6 +5,28 @@ date: "9/30/2019"
 output: html_document
 ---
 
+```{bash eval=FALSE, include=FALSE}
+# we ran the following docker commants with the listed container to get these results: 
+
+##actual dropouts:
+
+
+##control runs:
+
+docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="1" -e HIGH="8" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
+
+docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="5" -e HIGH="14" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
+
+docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="5.5" -e HIGH="8.5" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
+
+docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="5" -e HIGH="9" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
+
+docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="6" -e HIGH="8" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
+
+docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="1" -e HIGH="14" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
+```
+
+
 ```{r}
 library(reticulate)
 library(tidyverse)
