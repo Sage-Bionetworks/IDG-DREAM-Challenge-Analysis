@@ -10,6 +10,17 @@ output: html_document
 
 ##actual dropouts:
 
+ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="5" -e HIGH="9" docker.synapse.org/syn18519352/qed-paff
+
+ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="5.5" -e HIGH="8.5" docker.synapse.org/syn18519352/qed-paff
+
+ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="6" -e HIGH="8" docker.synapse.org/syn18519352/qed-paff
+
+ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="1" -e HIGH="14" docker.synapse.org/syn18519352/qed-paff
+
+ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="5" -e HIGH="14" docker.synapse.org/syn18519352/qed-paff
+
+ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="1" -e HIGH="8" docker.synapse.org/syn18519352/qed-paff
 
 ##control runs:
 

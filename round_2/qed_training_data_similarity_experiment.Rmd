@@ -1,19 +1,18 @@
 ---
-title: "R Notebook"
+title: "Plotting Results of QED Data Dropout Experiment"
+author: "Robert Allaway"
+date: "`r sys.Date()`"
 output:
   html_document:
     df_print: paged
 ---
 
-This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
-
-Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
 
 ```{r}
 library(reticulate)
 library(tidyverse)
 
-use_python("/usr/local/bin/python2")
+use_condaenv('idg-dream', required = T)
 synapse <- import("synapseclient")
 syn <- synapse$Synapse()
 synutils <- synapse$utils
@@ -37,7 +36,6 @@ rmse_py <- function(gold, pred){
 ```
 
 ```{r}
-
 ids <- tibble::tribble(
   ~id, ~threshold, ~random_iteration, ~is_random, ~exp_label, ~no_of_removed,
   "syn20543796", 0.5, 1, "Random Control", "0.5", 1530,
@@ -207,9 +205,8 @@ ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_remov
 
 library(Cairo)
 
-
-spearman_scal_fact <- 60462*2
-rmse_scal_fact <- 60462
+spearman_scal_fact <- 60462*2 ##total no of pairs to convert to ratio
+rmse_scal_fact <- 60462*0.6
   
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)) %>% filter(threshold > 0.1))+
   geom_bar(aes(x = exp_label, y = mean_rmse, fill = is_random), stat = 'identity', position = position_dodge(preserve = "single")) +
@@ -219,13 +216,13 @@ ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_remov
   geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
   geom_point(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
   geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, color = is_random), position = 'dodge') +
-  scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) +
+  scale_y_continuous(sec.axis = sec_axis(~.*0.6, name = "Proportion of removed pairs")) +
   scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#75B3CE")) +
   scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#75B3CE"))
 
 
-ggsave("figure_3_spearman_r2.pdf",  device = cairo_pdf,
-              width = 11.69, height = 4.135, units = "in")
+ggsave("figure_3_rmse_r2.pdf",  device = cairo_pdf,
+              width = 9, height = 4.135, units = "in")
   
   
 
@@ -237,13 +234,13 @@ ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_remov
   geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   geom_point(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, color = is_random), position = 'dodge') +
-  scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) +
+  scale_y_continuous(sec.axis = sec_axis(~.*2, name = "Proportion of removed pairs")) +
   scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#E5A467")) +
   scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#E5A467"))
 
 
-ggsave("figure_3_rmse_r2.pdf",  device = cairo_pdf,
-              width = 11.69, height = 4.135, units = "in")
+ggsave("figure_3_spearman_r2.pdf",  device = cairo_pdf,
+              width = 9, height = 4.135, units = "in")
 
 
 ```

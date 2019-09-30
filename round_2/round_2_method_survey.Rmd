@@ -187,4 +187,28 @@ plots <- lapply(interesting_vars, plot_continuous_vars)
 plots
 ```
 
+## plot of DTC metrics for comparison with usage 
+
+```{r}
+dtc<- tibble::tribble(
+  ~metric, ~n_val, ~group,
+"IC50",1153137, "XC50",
+"Ki",674982, "Ki",
+"Kd",76116, "Kd",
+"EC50",154434, "XC50",
+"AC50",109449, "XC50"
+) %>% dplyr::arrange(desc(n_val)) %>% 
+  mutate(group = factor(group, levels = unique(group)))
+
+p<-ggplot(dtc) + 
+      geom_bar(aes(x = group, y = n_val, fill = metric), stat = "identity", position = "stack") +
+      theme_bw() +
+      scale_fill_manual("Bioactivity Type", values =
+                    c(wes_palette("Darjeeling1"),wes_palette("Darjeeling2"),wes_palette("IsleofDogs1"))) +
+      labs(x = "Bioactivity Category", y = "Number of Values in DrugTargetCommons") 
+  
+pdf("dtc_metrics.pdf",width = 7.5, height= 3.33)
+cowplot::plot_grid(p, ncol=1, align = "v")
+dev.off()
+```
 
