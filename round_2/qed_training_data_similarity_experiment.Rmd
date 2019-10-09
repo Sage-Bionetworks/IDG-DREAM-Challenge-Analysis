@@ -1,7 +1,7 @@
 ---
 title: "Plotting Results of QED Data Dropout Experiment"
 author: "Robert Allaway"
-date: "`r sys.Date()`"
+date: "`r Sys.Date()`"
 output:
   html_document:
     df_print: paged
@@ -218,7 +218,8 @@ ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_remov
   geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, color = is_random), position = 'dodge') +
   scale_y_continuous(sec.axis = sec_axis(~.*0.6, name = "Proportion of removed pairs")) +
   scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#75B3CE")) +
-  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#75B3CE"))
+  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#75B3CE")) +
+  theme(axis.text = element_text(size = 10))
 
 
 ggsave("figure_3_rmse_r2.pdf",  device = cairo_pdf,
@@ -229,14 +230,16 @@ ggsave("figure_3_rmse_r2.pdf",  device = cairo_pdf,
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)) %>% filter(threshold > 0.1))+
   geom_bar(aes(x = exp_label, y = mean_spearman, fill = is_random), stat = 'identity', position = position_dodge(preserve = "single")) +
   theme_bw() +
-  labs(y= "Spearman Correlation", x = "Tanimoto Threshold") +
+  labs(y= "Spearman correlation", x = "Tanimoto Threshold") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
   geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   geom_point(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, color = is_random), position = 'dodge') +
   scale_y_continuous(sec.axis = sec_axis(~.*2, name = "Proportion of removed pairs")) +
   scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#E5A467")) +
-  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#E5A467"))
+  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#E5A467")) +
+  theme(axis.text = element_text(size = 10))
+
 
 
 ggsave("figure_3_spearman_r2.pdf",  device = cairo_pdf,
