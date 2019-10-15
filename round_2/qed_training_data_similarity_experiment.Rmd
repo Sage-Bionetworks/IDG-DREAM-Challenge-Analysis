@@ -247,3 +247,72 @@ ggsave("figure_3_spearman_r2.pdf",  device = cairo_pdf,
 
 
 ```
+
+## Make Similarity Histogram
+```{r}
+
+qed_pkd <- syn$get("syn20690323")$path %>% 
+  read_delim(delim = " ", col_names = F) 
+qed_cmpd <- syn$get("syn20690840")$path %>% 
+  read_delim(delim = "\t", ,col_names = F)
+qed_prot <- syn$get("syn20690841")$path %>% 
+  read_delim(delim = "\t", col_names = F)
+
+qed_pkd_tidy <- qed_pkd %>% 
+  magrittr::set_colnames(qed_prot$X1) %>% 
+  magrittr::set_rownames(qed_cmpd$X1) %>% 
+  rownames_to_column("cmpd") %>% 
+  gather(key = "prot", value = "pKd", -cmpd) %>% 
+  filter(pKd < 100)
+
+sim_matrix_path<-syn$get('syn20975467')$path
+np <- import("numpy")
+
+sim_mat <- np$load(sim_matrix_path)
+
+colnames(sim_mat) <- qed_cmpd$X1
+rownames(sim_mat) <- qed_cmpd$X1
+
+sim_mat_subset <- sim_mat[rownames(sim_mat) %in% gold$Compound_SMILES,] %>% 
+  as_tibble(rownames = NA) %>%
+  rownames_to_column("test_compounds") %>% 
+  group_by(test_compounds) %>% 
+  gather("train_compounds", "sim", -test_compounds) %>% 
+  ungroup() %>% 
+  group_by(train_compounds) %>% 
+  top_n(1, sim) %>%
+  sample_n(1) %>%  ##in case there are some with identical similarities to test set. we just need to pick one 
+  ungroup() %>% 
+  rename(cmpd = train_compounds) %>% 
+  inner_join(qed_pkd_tidy) %>% 
+  filter(!is.na(pKd))
+
+bars<- tibble::tribble(
+  ~max, ~cutoff, ~height,
+  1, 0.15, -1000,
+  1, 0.2, -1500,
+  1, 0.3, -2000,
+  1, 0.4, -2500,
+  1, 0.5, -3000,
+  1, 0.6, -3500,
+  1, 0.7, -4000,
+  1, 0.8, -4500,
+  1, 0.9, -5000,
+)
+
+ggplot(sim_mat_subset) + 
+  geom_histogram(aes(x=sim))+
+  geom_segment(data = bars, aes(x = max, y = height, xend = cutoff, yend = height, color = cutoff), arrow = arrow(angle = 90, length = unit(0.025, "inches"),
+       ends = "both", type = "open"), size = 1) +
+  theme_bw() +
+  theme(text = element_text(size = 10)) + 
+  labs(x = "Minimum Tanimoto Similarity to Test Compounds", y = "Count")
+  
+
+
+ggsave("figure_3_sim_hist.pdf",  device = cairo_pdf,
+              width = 9, height = 4.135, units = "in")
+
+
+```
+
