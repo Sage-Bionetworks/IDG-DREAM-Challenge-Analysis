@@ -41,6 +41,7 @@ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 library(reticulate)
 library(tidyverse)
+library(Cairo)
 
 use_python("/usr/local/bin/python2")
 synapse <- import("synapseclient")
@@ -145,38 +146,97 @@ data_df_summary <- data_df %>%
   left_join(gold %>% select(Compound_InchiKeys, UniProt_Id, DiscoveRx_Gene_Symbol, `pKd_[M]`)) %>% 
   group_by(exp_label,lower_limit, upper_limit, is_random, no_of_removed, random_iteration) %>% 
   summarize(spearman = spearman_py(`pKd_[M]`,`pKd_[M]_pred`),rmse = rmse_py(`pKd_[M]`,`pKd_[M]_pred`)) %>% 
-  arrange(no_of_removed)
+  arrange(no_of_removed) %>% 
+  ungroup()
 
 spearman_scal_fact <- 60462*2
 rmse_scal_fact <- 60462
 
-ggplot(data_df_summary %>% group_by(exp_label, is_random, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)))+
-  geom_col(aes(x = reorder(exp_label, no_of_removed), y = mean_rmse), fill = "#75B3CE", stat = 'identity') +
+# levs <- c("no limit", "5 ≤ Kd ≤ no limit", "5 ≤ Kd ≤ 9", "5.5 ≤ Kd ≤ 8.5", "6 ≤ Kd ≤ 8",  "no limit ≤ Kd ≤ 8")
+# data_df_summary <- mutate(data_df_summary, exp_label = factor(exp_label, levels = levs, ordered=T))
+
+
+
+data_df_summary <- data_df_summary %>% mutate(is_random_label = case_when(is_random == T ~ "random control",
+                                     is_random == F ~ "pKd dropout")) 
+  
+p_1 <- ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)))+
+  geom_col(aes(x = reorder(exp_label, no_of_removed), y = mean_rmse, fill = exp_label, alpha = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
   theme_bw() +
   labs(y= "RMSE", x = "Tanimoto Threshold") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
-  facet_grid(cols = vars(is_random), space = "free", scales = "free") +
-  geom_text(aes(x = exp_label, y = mean_rmse, label = signif(no_of_removed/60462,2)), position = position_stack(vjust = 0.5), angle = 90, color = 'white') +
-  geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse)) +
-    geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) 
+  # facet_grid(cols = vars(is_random_label), space = "free", scales = "free") +
+  geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, group = is_random_label, color = exp_label), position = "dodge") +
+  geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
+    geom_point(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
+  scale_fill_manual(name = "pKd threshold",
+                    values = c("no limit" = "#FDE725FF", 
+                               "5 ≤ Kd ≤ no limit" = "#7AD151FF",
+                               "5 ≤ Kd ≤ 9" = "#22A884FF", 
+                               "5.5 ≤ Kd ≤ 8.5" = "#2A788EFF", 
+                               "6 ≤ Kd ≤ 8" = "#414487FF",  
+                               "no limit ≤ Kd ≤ 8" = "#440154FF")) +
+    scale_color_manual(name = "pKd threshold",
+                    values = c("no limit" = "#FDE725FF", 
+                               "5 ≤ Kd ≤ no limit" = "#7AD151FF",
+                               "5 ≤ Kd ≤ 9" = "#22A884FF", 
+                               "5.5 ≤ Kd ≤ 8.5" = "#2A788EFF", 
+                               "6 ≤ Kd ≤ 8" = "#414487FF",  
+                               "no limit ≤ Kd ≤ 8" = "#440154FF")) +
+  scale_alpha_manual(name = "experiment condition", 
+                     values = c('pKd dropout'=1,
+                                'random control'=0.5)) +
+    theme(text = element_text(size = 13)) +
+    scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) 
 
-ggplot(data_df_summary %>% group_by(exp_label, is_random, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)))+
-  geom_col(aes(x = reorder(exp_label, no_of_removed), y = mean_spearman), fill = "#75B3CE", stat = 'identity') +
+
+p_2 <-ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)))+
+  geom_col(aes(x = reorder(exp_label, no_of_removed), y = mean_spearman, fill = exp_label, alpha = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
   theme_bw() +
-  labs(y= "spearman", x = "Tanimoto Threshold") +
+  labs(y= "Spearman correlation", x = "Tanimoto Threshold") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
-  facet_grid(cols = vars(is_random), space = "free", scales = "free") +
-  geom_text(aes(x = exp_label, y = mean_spearman, label = signif(no_of_removed/60462,2)), position = position_stack(vjust = 0.5), angle = 90, color = 'white') +
-  geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman)) +
-    geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) 
+  # facet_grid(cols = vars(is_random_label), space = "free", scales = "free") +
+  geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, group = is_random_label, color = exp_label), position = "dodge") +
+  geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
+  geom_point(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
+  scale_fill_manual(name = "pKd threshold",
+                    values = c("no limit" = "#FDE725FF", 
+                               "5 ≤ Kd ≤ no limit" = "#7AD151FF",
+                               "5 ≤ Kd ≤ 9" = "#22A884FF", 
+                               "5.5 ≤ Kd ≤ 8.5" = "#2A788EFF", 
+                               "6 ≤ Kd ≤ 8" = "#414487FF",  
+                               "no limit ≤ Kd ≤ 8" = "#440154FF")) +
+    scale_color_manual(name = "pKd threshold",
+                    values = c("no limit" = "#FDE725FF", 
+                               "5 ≤ Kd ≤ no limit" = "#7AD151FF",
+                               "5 ≤ Kd ≤ 9" = "#22A884FF", 
+                               "5.5 ≤ Kd ≤ 8.5" = "#2A788EFF", 
+                               "6 ≤ Kd ≤ 8" = "#414487FF",  
+                               "no limit ≤ Kd ≤ 8" = "#440154FF")) +
+    scale_alpha_manual(name = "experiment condition", 
+                     values = c('pKd dropout'=1,
+                                'random control'=0.5)) +
+    theme(text = element_text(size = 13)) +
+    scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) 
 
+
+p_1
+
+ggsave("figure_5_qed_sim_rmse.svg",
+              width = 9, height = 4.135, units = "in")
+
+
+p_2
+
+
+ggsave("figure_5_qed_sim_spearman.svg",
+              width = 9, height = 4.135, units = "in")
 
 
 ```
 
-```{r echo=TRUE, message=FALSE, warning=FALSE, fig.width=10}
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.width=7.5, fig.height=10}
 
-# library(Cairo)
 all_preds <- data_df %>% left_join(gold) %>% group_by(`pKd_[M]`, exp_label, is_random, no_of_removed) %>% summarize(mean_pred = mean(`pKd_[M]_pred`)) %>% ungroup()
 
 levs <- c("no limit", "5 ≤ Kd ≤ no limit", "5 ≤ Kd ≤ 9", "5.5 ≤ Kd ≤ 8.5", "6 ≤ Kd ≤ 8",  "no limit ≤ Kd ≤ 8")
@@ -188,7 +248,7 @@ all_preds <- mutate(all_preds, exp_label = factor(exp_label,
                                      is_random == F ~ "pKd dropout")) 
 
 
-library(cowplot)
+# library(cowplot)
 
 p1<- ggplot(all_preds) + 
   geom_smooth(aes(y = abs(`pKd_[M]`-`mean_pred`),x =`pKd_[M]`, color = exp_label, fill = exp_label), alpha = 0.2) +
@@ -197,21 +257,35 @@ p1<- ggplot(all_preds) +
   theme_bw() +
   scale_fill_viridis_d(name = "pKd threshold") +
   scale_color_viridis_d(name = "pKd threshold") +
-    theme(text = element_text(size = 25))
+    theme(text = element_text(size = 15))
+
+sz <- 1.5
+end <- 'butt'
+join <- 'mitre'
 
 p2 <- ggplot(qed_pkd_tidy) + 
   geom_histogram(aes(x=pKd))+
-  geom_segment(aes(x = 1, y = -500, xend = 13, yend = -500), arrow = arrow(angle = 10, length = unit(0.25, "inches"),
-      ends = "both", type = "open"), color = "#FDE725FF", size = 2) +
-  geom_segment(aes(x = 5, y = -3000, xend = 13, yend = -3000), arrow = arrow(angle = 10, length = unit(0.25, "inches"),
-      ends = "last", type = "open"), color = "#7AD151FF", size = 2) +
-  geom_segment(aes(x = 5, y = -2500, xend = 9, yend = -2500), color = "#22A884FF", size = 2) +
-  geom_segment(aes(x = 5.5, y = -2000, xend = 8.5, yend = -2000), color = "#2A788EFF", size = 2) +
-  geom_segment(aes(x = 6, y = -1500, xend = 8, yend = -1500), color = "#414487FF", size = 2) +
-  geom_segment(aes(x = 1, y = -1000, xend = 8, yend = -1000), arrow = arrow(angle = 10, length = unit(0.25, "inches"),
-      ends = "first", type = "open"), color = "#440154FF", size = 2) +
+  geom_segment(aes(x = 1, y = -750, xend = 14, yend = -750), 
+               lineend = end, linejoin = join,
+               arrow = arrow(angle = 90, length = unit(0.1, "inches"),
+                             ends = "both", type = "open"), color = "#FDE725FF", size = sz) +
+  geom_segment(aes(x = 5, y = -4500, xend = 14, yend = -4500), 
+               lineend = end, linejoin = join,
+               arrow = arrow(angle = 90, length = unit(0.1, "inches"),
+                             ends = "last", type = "open"), color = "#7AD151FF", size = sz) +
+  geom_segment(aes(x = 5, y = -3750, xend = 9, yend = -3750), 
+               lineend = end, linejoin = join, color = "#22A884FF", size = sz) +
+  geom_segment(aes(x = 5.5, y = -3000, xend = 8.5, yend = -3000), 
+               lineend = end, linejoin = join,  color = "#2A788EFF", size = sz) +
+  geom_segment(aes(x = 6, y = -2250, xend = 8, yend = -2250), 
+               lineend = end, linejoin = join, color = "#414487FF", size = sz) +
+  geom_segment(aes(x = 1, y = -1500, xend = 8, yend = -1500), 
+               lineend = end, linejoin = join,
+               arrow = arrow(angle = 90, length = unit(0.1, "inches"),
+                             ends = "first", type = "open"), color = "#440154FF", size = sz) +
+  labs(x = "measured pKd", y = "number of compound-kinase training pairs") +
   theme_bw() +
-  theme(text = element_text(size = 25))
+  theme(text = element_text(size = 15))
 
 # ggplot(all_preds) + 
 #   geom_line(aes(y = abs(`pKd_[M]`-`mean_pred`),x =`pKd_[M]`, color = exp_label)) +
@@ -223,13 +297,22 @@ p2 <- ggplot(qed_pkd_tidy) +
 #   facet_wrap(~is_random, nrow = 2) +
 #   labs(x = "measured pKd", y = "absolute error of prediction")
 
+p1
 
-# ggsave("pkd_threshold_experiment.pdf",  device = cairo_pdf,
-#               width = 11.69, height = 4.135, units = "in")
-#   
+ggsave("figure_5_qed_sim_traces.svg", 
+              width = 9, height = 8.5, units = "in")
 
 
-cowplot::plot_grid(p2, p1, rat)
-  
+p2
 
+#for some reason this file is really giving me problems in Graphic as an svg, so lets save it as a fixed file 
+ggsave("figure_5_qed_sim_hist.png", 
+              width = 9, height = 4.135, units = "in")
+
+
+cowplot::plot_grid(p_1, p_2, p1, p2, ncol = 1, align = 'v', axis = 'rl', rel_heights = c(0.16,0.16,0.25,0.25))
+
+ggsave("pkd_threshold_experiment_qed.pdf",  device = cairo_pdf,
+               width = 10, height = 20, units = "in")
+   
 ```
