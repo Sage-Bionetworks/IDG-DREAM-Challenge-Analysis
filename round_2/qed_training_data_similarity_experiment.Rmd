@@ -301,17 +301,17 @@ bars<- tibble::tribble(
 )
 
 ggplot(sim_mat_subset) + 
-  geom_histogram(aes(x=sim))+
-  geom_segment(data = bars, aes(x = max, y = height, xend = cutoff, yend = height, color = cutoff), arrow = arrow(angle = 90, length = unit(0.025, "inches"),
+  geom_histogram(aes(x=sim), boundary = 1, bins = 30)+
+  geom_segment(data = bars, aes(x = max, y = height, xend = cutoff, yend = height), arrow = arrow(angle = 90, length = unit(0.025, "inches"),
        ends = "both", type = "open"), size = 1) +
   theme_bw() +
   theme(text = element_text(size = 10)) + 
-  labs(x = "Minimum Tanimoto Similarity to Test Compounds", y = "Count")
-  
+  labs(x = "Minimum Tanimoto Similarity to Test Compounds", y = "Count")  +
+  scale_x_continuous(breaks = seq(0,1, by = 0.2))
 
 
 ggsave("figure_3_sim_hist.pdf",  device = cairo_pdf,
-              width = 9, height = 4.135, units = "in")
+              width = 6, height = 4.135, units = "in")
 
 
 ```
