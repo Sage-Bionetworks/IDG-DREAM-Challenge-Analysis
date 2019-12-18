@@ -42,6 +42,7 @@ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW
 library(reticulate)
 library(tidyverse)
 library(Cairo)
+library(svglite)
 
 use_python("/usr/local/bin/python2")
 synapse <- import("synapseclient")
@@ -265,20 +266,14 @@ p2 <- ggplot(qed_pkd_tidy) +
   geom_histogram(aes(x=pKd))+
   geom_segment(aes(x = 1, y = -750, xend = 14, yend = -750), 
                lineend = end, linejoin = join,
-               arrow = arrow(angle = 20, length = unit(0.1, "inches"),
+               arrow = arrow(angle = 90, length = unit(0.05, "inches"),
                              ends = "both", type = "open"), 
                # color = "#FDE725FF", 
                size = sz) +
   geom_segment(aes(x = 5, y = -4500, xend = 14, yend = -4500), 
                lineend = end, linejoin = join,
-               arrow = arrow(angle = 20, length = unit(0.1, "inches"),
-                             ends = "last", type = "open"), 
-               # color = "#7AD151FF", 
-               size = sz) +
-    geom_segment(aes(x = 5, y = -4500, xend = 14-1, yend = -4500), 
-               lineend = end, linejoin = join,
                arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-                             ends = "first", type = "open"), 
+                             ends = "both", type = "open"), 
                # color = "#7AD151FF", 
                size = sz) +
   geom_segment(aes(x = 5, y = -3750, xend = 9, yend = -3750), 
@@ -301,15 +296,9 @@ p2 <- ggplot(qed_pkd_tidy) +
                size = sz) +
   geom_segment(aes(x = 1, y = -1500, xend = 8, yend = -1500), 
                lineend = end, linejoin = join,
-               arrow = arrow(angle = 20, length = unit(0.1, "inches"),
-                             ends = "first", type = "open"),
-                              # color = "#440154FF", 
-               size = sz) +
-  geom_segment(aes(x = 1+1, y = -1500, xend = 8, yend = -1500), 
-               lineend = end, linejoin = join,
                arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-                             ends = "last", type = "open"), 
-               # color = "#440154FF", 
+                             ends = "both", type = "open"),
+                              # color = "#440154FF", 
                size = sz) +
   labs(x = "measured pKd", y = "number of compound-kinase training pairs") +
   theme_bw() +

@@ -37,26 +37,29 @@ rmse_py <- function(gold, pred){
   rmse(gold_py, pred_py)
 }
 
-# qed_pkd <- syn$get("syn20690323")$path %>% 
-#   read_delim(delim = " ", col_names = F) 
-# qed_cmpd <- syn$get("syn20690840")$path %>% 
-#   read_delim(delim = "\t", ,col_names = F)
-# qed_prot <- syn$get("syn20690841")$path %>% 
-#   read_delim(delim = "\t", col_names = F)
-# 
-# qed_pkd_tidy <- qed_pkd %>% 
-#   magrittr::set_colnames(qed_prot$X1) %>% 
-#   magrittr::set_rownames(qed_cmpd$X1) %>% 
-#   rownames_to_column("cmpd") %>% 
-#   gather(key = "prot", value = "pKd", -cmpd) %>% 
-#   filter(pKd < 100)
+
+dmis_pkd_tidy <- syn$get("syn21445732")$path %>%
+  read_csv() %>% 
+  select(target_id, standard_inchi_key, standard_value_pkd) %>% 
+  rename(prot = target_id, cmpd = standard_inchi_key, pKd = standard_value_pkd)
 
 
 ```
 
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 
-## We are describing the cutoffs of LOW = 1 and HIGH= 14 as "no limit" as there were no training data points that were outside this range.
+math <- tibble::tribble(
+  ~exp_label, ~no_of_used,
+  "1 ≤ Kd ≤ 14", 950698,
+  "5 ≤ Kd ≤ 14", 950698,
+  "1 ≤ Kd ≤ 8", 746609,
+  "5.5 ≤ Kd ≤ 8.5", 608206,
+  "5 ≤ Kd ≤ 9", 890134,
+  "6 ≤ Kd ≤ 8", 430972
+) %>% mutate(total = 950732) %>% 
+  mutate(no_of_removed = total-no_of_used) %>% 
+  select(-total, -no_of_used)
+
 
 ids <- tibble::tribble(
   ~id, ~lower_limit, ~upper_limit, ~is_random, ~exp_label, ~no_of_removed, ~random_iteration,
@@ -66,22 +69,22 @@ ids <- tibble::tribble(
 # syn21217151
 # syn21217152
 # syn21217153
-"syn21209595",1,14,F,"no limit",0,0,
-"syn21209598",1,14,T,"no limit",0,1,
-"syn21209599",1,14,T,"no limit",0,2,
-"syn21209600",1,14,T,"no limit",0,3,
-"syn21209585",1,8,F,"Kd ≤ 8",0,0,
-"syn21209590",1,8,T,"Kd ≤ 8",0,1,
-"syn21209591",1,8,T,"Kd ≤ 8",0,2,
-"syn21209594",1,8,T,"Kd ≤ 8",0,3,
+"syn21209595",1,14,F,"1 ≤ Kd ≤ 14",0,0,
+"syn21209598",1,14,T,"1 ≤ Kd ≤ 14",0,1,
+"syn21209599",1,14,T,"1 ≤ Kd ≤ 14",0,2,
+"syn21209600",1,14,T,"1 ≤ Kd ≤ 14",0,3,
+"syn21209585",1,8,F,"1 ≤ Kd ≤ 8",0,0,
+"syn21209590",1,8,T,"1 ≤ Kd ≤ 8",0,1,
+"syn21209591",1,8,T,"1 ≤ Kd ≤ 8",0,2,
+"syn21209594",1,8,T,"1 ≤ Kd ≤ 8",0,3,
 "syn21209601",5.5,8.5,F,"5.5 ≤ Kd ≤ 8.5",0,0,
 "syn21209602",5.5,8.5,T,"5.5 ≤ Kd ≤ 8.5",0,1,
 "syn21209603",5.5,8.5,T,"5.5 ≤ Kd ≤ 8.5",0,2,
 "syn21209605",5.5,8.5,T,"5.5 ≤ Kd ≤ 8.5",0,3,
-"syn21209612",5,14,F,"5 ≤ Kd",0,0,
-"syn21209613",5,14,T,"5 ≤ Kd",0,1,
-"syn21209614",5,14,T,"5 ≤ Kd",0,2,
-"syn21209615",5,14,T,"5 ≤ Kd",0,3,
+"syn21209612",5,14,F,"5 ≤ Kd ≤ 14",0,0,
+"syn21209613",5,14,T,"5 ≤ Kd ≤ 14",0,1,
+"syn21209614",5,14,T,"5 ≤ Kd ≤ 14",0,2,
+"syn21209615",5,14,T,"5 ≤ Kd ≤ 14",0,3,
 "syn21209606",5,9,F,"5 ≤ Kd ≤ 9",0,0,
 "syn21209607",5,9,T,"5 ≤ Kd ≤ 9",0,1,
 "syn21209610",5,9,T,"5 ≤ Kd ≤ 9",0,2,
@@ -89,8 +92,9 @@ ids <- tibble::tribble(
 "syn21209616",6,8,F,"6 ≤ Kd ≤ 8",0,0,
 "syn21209617",6,8,T,"6 ≤ Kd ≤ 8",0,1,
 "syn21209619",6,8,T,"6 ≤ Kd ≤ 8",0,2,
-"syn21209621",6,8,T,"6 ≤ Kd ≤ 8",0,3)
-
+"syn21209621",6,8,T,"6 ≤ Kd ≤ 8",0,3) %>% 
+  select(-no_of_removed) %>%  #placeholder
+  left_join(math)
 
 
 data <- lapply(ids$id, function(x){
@@ -115,8 +119,8 @@ data_df_summary <- data_df %>%
   arrange(no_of_removed) %>% 
   ungroup()
 
-spearman_scal_fact <- 60462*2
-rmse_scal_fact <- 60462
+spearman_scal_fact <- 950732*2
+rmse_scal_fact <- 950732
 
 # levs <- c("no limit", "5 ≤ Kd", "5 ≤ Kd ≤ 9", "5.5 ≤ Kd ≤ 8.5", "6 ≤ Kd ≤ 8",  "Kd ≤ 8")
 # data_df_summary <- mutate(data_df_summary, exp_label = factor(exp_label, levels = levs, ordered=T))
@@ -227,55 +231,43 @@ sz <- 1
 end <- 'butt'
 join <- 'mitre'
 
-p2 <- ggplot(qed_pkd_tidy) + 
+p2 <- ggplot(dmis_pkd_tidy) + 
   geom_histogram(aes(x=pKd))+
-  geom_segment(aes(x = 1, y = -750, xend = 14, yend = -750), 
+  geom_segment(aes(x = 1, y = -5000, xend = 14, yend = -5000), 
                lineend = end, linejoin = join,
-               arrow = arrow(angle = 20, length = unit(0.1, "inches"),
+               arrow = arrow(angle = 90, length = unit(0.05, "inches"),
                              ends = "both", type = "open"), 
                # color = "#FDE725FF", 
                size = sz) +
-  geom_segment(aes(x = 5, y = -4500, xend = 14, yend = -4500), 
-               lineend = end, linejoin = join,
-               arrow = arrow(angle = 20, length = unit(0.1, "inches"),
-                             ends = "last", type = "open"), 
-               # color = "#7AD151FF", 
-               size = sz) +
-    geom_segment(aes(x = 5, y = -4500, xend = 14-1, yend = -4500), 
+  geom_segment(aes(x = 5, y = -20000, xend = 14, yend = -20000), 
                lineend = end, linejoin = join,
                arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-                             ends = "first", type = "open"), 
+                             ends = "both", type = "open"), 
                # color = "#7AD151FF", 
                size = sz) +
-  geom_segment(aes(x = 5, y = -3750, xend = 9, yend = -3750), 
+  geom_segment(aes(x = 5, y = -17000, xend = 9, yend = -17000), 
                lineend = end, linejoin = join, 
                arrow = arrow(angle = 90, length = unit(0.05, "inches"),
                              ends = "both", type = "open"),
                # color = "#22A884FF", 
                size = sz,) +
-  geom_segment(aes(x = 5.5, y = -3000, xend = 8.5, yend = -3000), 
+  geom_segment(aes(x = 5.5, y = -14000, xend = 8.5, yend = -14000), 
                lineend = end, linejoin = join,
                arrow = arrow(angle = 90, length = unit(0.05, "inches"),
                              ends = "both", type = "open"),
                # color = "#2A788EFF", 
                size = sz) +
-  geom_segment(aes(x = 6, y = -2250, xend = 8, yend = -2250), 
+  geom_segment(aes(x = 6, y = -11000, xend = 8, yend = -11000), 
                lineend = end, linejoin = join, 
                arrow = arrow(angle = 90, length = unit(0.05, "inches"),
                              ends = "both", type = "open"),
                # color = "#414487FF", 
                size = sz) +
-  geom_segment(aes(x = 1, y = -1500, xend = 8, yend = -1500), 
-               lineend = end, linejoin = join,
-               arrow = arrow(angle = 20, length = unit(0.1, "inches"),
-                             ends = "first", type = "open"),
-                              # color = "#440154FF", 
-               size = sz) +
-  geom_segment(aes(x = 1+1, y = -1500, xend = 8, yend = -1500), 
+  geom_segment(aes(x = 1, y = -8000, xend = 8, yend = -8000), 
                lineend = end, linejoin = join,
                arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-                             ends = "last", type = "open"), 
-               # color = "#440154FF", 
+                             ends = "both", type = "open"),
+                              # color = "#440154FF", 
                size = sz) +
   labs(x = "measured pKd", y = "number of compound-kinase training pairs") +
   theme_bw() +
@@ -293,20 +285,20 @@ p2 <- ggplot(qed_pkd_tidy) +
 
 p1
 
-ggsave("figure_5_qed_sim_traces.svg", 
+ggsave("figure_5_dmis_sim_traces.svg", 
               width = 9, height = 8.5, units = "in")
 
 
 p2
 
 #for some reason this file is really giving me problems in Graphic as an svg, so lets save it as a fixed file 
-ggsave("figure_5_qed_sim_hist.png", 
+ggsave("figure_5_dmis_sim_hist.png", 
   width = 6, height = 4.135, units = "in")
 
 
 cowplot::plot_grid(p_1, p_2, p1, p2, ncol = 1, align = 'v', axis = 'rl', rel_heights = c(0.16,0.16,0.25,0.25))
 
-ggsave("pkd_threshold_experiment_qed.pdf",  device = cairo_pdf,
+ggsave("pkd_threshold_experiment_dmis.pdf",  device = cairo_pdf,
                width = 10, height = 20, units = "in")
    
 ```

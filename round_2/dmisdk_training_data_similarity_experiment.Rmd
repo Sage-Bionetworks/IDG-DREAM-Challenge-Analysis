@@ -50,7 +50,7 @@ ids <- tibble::tribble(
   "syn21363510",0.8,1,"Random Control","0.8",1034,
   "syn21363511",0.8,2,"Random Control","0.8",1034,
   "syn21363512",0.8,NA,"Dropout Test","0.8",1034,
-  "syn18513222",1,NA,"Submitted Predictions", "R2",0)
+  "syn21209595",1,NA,"All Training Data", "AD",0)
 
 data <- lapply(ids$id, function(x){
   syn$get(x)$path %>% read_csv()
@@ -89,7 +89,7 @@ ggplot(data_df_summary)+
                                                           "0.9" = "#8EA3FF", 
                                                           "1" = "#637FFF",
                                                           "R2" = "#00BFFF")) +
-  scale_shape_manual(name = "Random Control", values= c("Random Control"= 1,"Dropout Test"= 19,"Submitted Predictions"=20))
+  scale_shape_manual(name = "Random Control", values= c("Random Control"= 1,"Dropout Test"= 19,"All Training Data"=20))
 
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)))+
   geom_col(aes(x = exp_label, y = mean_rmse), fill = "#75B3CE", stat = 'identity') +
@@ -174,12 +174,12 @@ ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_remov
   geom_point(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
   geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, color = is_random), position = 'dodge') +
   scale_y_continuous(sec.axis = sec_axis(~.*0.6, name = "Proportion of removed pairs")) +
-  scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#75B3CE")) +
-  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#75B3CE")) +
+  scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#75B3CE")) +
+  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#75B3CE")) +
   theme(axis.text = element_text(size = 10))
 
 
-ggsave("figure_3_rmse_r2.pdf",  device = cairo_pdf,
+ggsave("figure_3_rmse_r2_dmis_sim.pdf",  device = cairo_pdf,
               width = 9, height = 4.135, units = "in")
   
   
@@ -193,13 +193,13 @@ ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_remov
   geom_point(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, color = is_random), position = 'dodge') +
   scale_y_continuous(sec.axis = sec_axis(~.*2, name = "Proportion of removed pairs")) +
-  scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#E5A467")) +
-  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","Submitted Predictions"="#E5A467")) +
+  scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#E5A467")) +
+  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#E5A467")) +
   theme(axis.text = element_text(size = 10))
 
 
 
-ggsave("figure_3_spearman_r2.pdf",  device = cairo_pdf,
+ggsave("figure_3_spearman_r2_dmis_sim.pdf",  device = cairo_pdf,
               width = 9, height = 4.135, units = "in")
 
 
@@ -244,7 +244,7 @@ ggplot(sim_subset) +
   scale_x_continuous(breaks = seq(0,1, by = 0.2))
 
 
-ggsave("figure_3_sim_hist.pdf",  device = cairo_pdf,
+ggsave("figure_3_sim_hist_dmis.pdf",  device = cairo_pdf,
               width = 6, height = 4.135, units = "in")
 
 
