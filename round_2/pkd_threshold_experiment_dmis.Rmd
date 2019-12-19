@@ -52,12 +52,12 @@ theme_set(theme_bw() +
 
 math <- tibble::tribble(
   ~exp_label, ~no_of_used,
-  "1 ≤ Kd ≤ 14", 950698,
-  "5 ≤ Kd ≤ 14", 950698,
-  "1 ≤ Kd ≤ 8", 746609,
-  "5.5 ≤ Kd ≤ 8.5", 608206,
-  "5 ≤ Kd ≤ 9", 890134,
-  "6 ≤ Kd ≤ 8", 430972
+  "1≤Kd≤14", 950698,
+  "5≤Kd≤14", 950698,
+  "1≤Kd≤8", 746609,
+  "5.5≤Kd≤8.5", 608206,
+  "5≤Kd≤9", 890134,
+  "6≤Kd≤8", 430972
 ) %>% mutate(total = 950732) %>% 
   mutate(no_of_removed = total-no_of_used) %>% 
   select(-total, -no_of_used)
@@ -71,30 +71,30 @@ ids <- tibble::tribble(
 # syn21217151
 # syn21217152
 # syn21217153
-"syn21209595",1,14,F,"1 ≤ Kd ≤ 14",0,0,
-"syn21209598",1,14,T,"1 ≤ Kd ≤ 14",0,1,
-"syn21209599",1,14,T,"1 ≤ Kd ≤ 14",0,2,
-"syn21209600",1,14,T,"1 ≤ Kd ≤ 14",0,3,
-"syn21209585",1,8,F,"1 ≤ Kd ≤ 8",0,0,
-"syn21209590",1,8,T,"1 ≤ Kd ≤ 8",0,1,
-"syn21209591",1,8,T,"1 ≤ Kd ≤ 8",0,2,
-"syn21209594",1,8,T,"1 ≤ Kd ≤ 8",0,3,
-"syn21209601",5.5,8.5,F,"5.5 ≤ Kd ≤ 8.5",0,0,
-"syn21209602",5.5,8.5,T,"5.5 ≤ Kd ≤ 8.5",0,1,
-"syn21209603",5.5,8.5,T,"5.5 ≤ Kd ≤ 8.5",0,2,
-"syn21209605",5.5,8.5,T,"5.5 ≤ Kd ≤ 8.5",0,3,
-"syn21209612",5,14,F,"5 ≤ Kd ≤ 14",0,0,
-"syn21209613",5,14,T,"5 ≤ Kd ≤ 14",0,1,
-"syn21209614",5,14,T,"5 ≤ Kd ≤ 14",0,2,
-"syn21209615",5,14,T,"5 ≤ Kd ≤ 14",0,3,
-"syn21209606",5,9,F,"5 ≤ Kd ≤ 9",0,0,
-"syn21209607",5,9,T,"5 ≤ Kd ≤ 9",0,1,
-"syn21209610",5,9,T,"5 ≤ Kd ≤ 9",0,2,
-"syn21209611",5,9,T,"5 ≤ Kd ≤ 9",0,3,
-"syn21209616",6,8,F,"6 ≤ Kd ≤ 8",0,0,
-"syn21209617",6,8,T,"6 ≤ Kd ≤ 8",0,1,
-"syn21209619",6,8,T,"6 ≤ Kd ≤ 8",0,2,
-"syn21209621",6,8,T,"6 ≤ Kd ≤ 8",0,3) %>% 
+"syn21209595",1,14,F,"1≤Kd≤14",0,0,
+"syn21209598",1,14,T,"1≤Kd≤14",0,1,
+"syn21209599",1,14,T,"1≤Kd≤14",0,2,
+"syn21209600",1,14,T,"1≤Kd≤14",0,3,
+"syn21209585",1,8,F,"1≤Kd≤8",0,0,
+"syn21209590",1,8,T,"1≤Kd≤8",0,1,
+"syn21209591",1,8,T,"1≤Kd≤8",0,2,
+"syn21209594",1,8,T,"1≤Kd≤8",0,3,
+"syn21209601",5.5,8.5,F,"5.5≤Kd≤8.5",0,0,
+"syn21209602",5.5,8.5,T,"5.5≤Kd≤8.5",0,1,
+"syn21209603",5.5,8.5,T,"5.5≤Kd≤8.5",0,2,
+"syn21209605",5.5,8.5,T,"5.5≤Kd≤8.5",0,3,
+"syn21209612",5,14,F,"5≤Kd≤14",0,0,
+"syn21209613",5,14,T,"5≤Kd≤14",0,1,
+"syn21209614",5,14,T,"5≤Kd≤14",0,2,
+"syn21209615",5,14,T,"5≤Kd≤14",0,3,
+"syn21209606",5,9,F,"5≤Kd≤9",0,0,
+"syn21209607",5,9,T,"5≤Kd≤9",0,1,
+"syn21209610",5,9,T,"5≤Kd≤9",0,2,
+"syn21209611",5,9,T,"5≤Kd≤9",0,3,
+"syn21209616",6,8,F,"6≤Kd≤8",0,0,
+"syn21209617",6,8,T,"6≤Kd≤8",0,1,
+"syn21209619",6,8,T,"6≤Kd≤8",0,2,
+"syn21209621",6,8,T,"6≤Kd≤8",0,3) %>% 
   select(-no_of_removed) %>%  #placeholder
   left_join(math)
 
@@ -124,7 +124,7 @@ data_df_summary <- data_df %>%
 spearman_scal_fact <- 950732*2
 rmse_scal_fact <- 950732
 
-# levs <- c("no limit", "5 ≤ Kd", "5 ≤ Kd ≤ 9", "5.5 ≤ Kd ≤ 8.5", "6 ≤ Kd ≤ 8",  "Kd ≤ 8")
+# levs <- c("no limit", "5≤Kd", "5≤Kd≤9", "5.5≤Kd≤8.5", "6≤Kd≤8",  "Kd≤8")
 # data_df_summary <- mutate(data_df_summary, exp_label = factor(exp_label, levels = levs, ordered=T))
 
 
@@ -135,25 +135,25 @@ data_df_summary <- data_df_summary %>% mutate(is_random_label = case_when(is_ran
 p_1 <- ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)))+
   geom_col(aes(x = reorder(exp_label, no_of_removed), y = mean_rmse, fill = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
   labs(y= "RMSE", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(size =15, angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size =10)) +
   # facet_grid(cols = vars(is_random_label), space = "free", scales = "free") +
   geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, group = is_random_label, color = is_random_label), position = "dodge") +
   geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
     geom_point(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
   # scale_fill_manual(name = "pKd threshold",
   #                   values = c("no limit" = "#FDE725FF", 
-  #                              "5 ≤ Kd" = "#7AD151FF",
-  #                              "5 ≤ Kd ≤ 9" = "#22A884FF", 
-  #                              "5.5 ≤ Kd ≤ 8.5" = "#2A788EFF", 
-  #                              "6 ≤ Kd ≤ 8" = "#414487FF",  
-  #                              "Kd ≤ 8" = "#440154FF")) +
+  #                              "5≤Kd" = "#7AD151FF",
+  #                              "5≤Kd≤9" = "#22A884FF", 
+  #                              "5.5≤Kd≤8.5" = "#2A788EFF", 
+  #                              "6≤Kd≤8" = "#414487FF",  
+  #                              "Kd≤8" = "#440154FF")) +
   #   scale_color_manual(name = "pKd threshold",
   #                   values = c("no limit" = "#FDE725FF", 
-  #                              "5 ≤ Kd" = "#7AD151FF",
-  #                              "5 ≤ Kd ≤ 9" = "#22A884FF", 
-  #                              "5.5 ≤ Kd ≤ 8.5" = "#2A788EFF", 
-  #                              "6 ≤ Kd ≤ 8" = "#414487FF",  
-  #                              "Kd ≤ 8" = "#440154FF")) +
+  #                              "5≤Kd" = "#7AD151FF",
+  #                              "5≤Kd≤9" = "#22A884FF", 
+  #                              "5.5≤Kd≤8.5" = "#2A788EFF", 
+  #                              "6≤Kd≤8" = "#414487FF",  
+  #                              "Kd≤8" = "#440154FF")) +
       scale_color_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
   scale_fill_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
     scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) 
@@ -162,25 +162,25 @@ p_1 <- ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_rem
 p_2 <-ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)))+
   geom_col(aes(x = reorder(exp_label, no_of_removed), y = mean_spearman, fill = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
   labs(y= "Spearman correlation", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(size = 15, angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size = 10)) +
   # facet_grid(cols = vars(is_random_label), space = "free", scales = "free") +
   geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, group = is_random_label, color = is_random_label), position = "dodge") +
   geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   geom_point(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   # scale_fill_manual(name = "pKd threshold",
   #                   values = c("no limit" = "#FDE725FF", 
-  #                              "5 ≤ Kd" = "#7AD151FF",
-  #                              "5 ≤ Kd ≤ 9" = "#22A884FF", 
-  #                              "5.5 ≤ Kd ≤ 8.5" = "#2A788EFF", 
-  #                              "6 ≤ Kd ≤ 8" = "#414487FF",  
-  #                              "Kd ≤ 8" = "#440154FF")) +
+  #                              "5≤Kd" = "#7AD151FF",
+  #                              "5≤Kd≤9" = "#22A884FF", 
+  #                              "5.5≤Kd≤8.5" = "#2A788EFF", 
+  #                              "6≤Kd≤8" = "#414487FF",  
+  #                              "Kd≤8" = "#440154FF")) +
   #   scale_color_manual(name = "pKd threshold",
   #                   values = c("no limit" = "#FDE725FF", 
-  #                              "5 ≤ Kd" = "#7AD151FF",
-  #                              "5 ≤ Kd ≤ 9" = "#22A884FF", 
-  #                              "5.5 ≤ Kd ≤ 8.5" = "#2A788EFF", 
-  #                              "6 ≤ Kd ≤ 8" = "#414487FF",  
-  #                              "Kd ≤ 8" = "#440154FF")) +
+  #                              "5≤Kd" = "#7AD151FF",
+  #                              "5≤Kd≤9" = "#22A884FF", 
+  #                              "5.5≤Kd≤8.5" = "#2A788EFF", 
+  #                              "6≤Kd≤8" = "#414487FF",  
+  #                              "Kd≤8" = "#440154FF")) +
     scale_fill_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
   scale_color_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
     scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) 
@@ -188,14 +188,14 @@ p_2 <-ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_remo
 
 p_1
 
-ggsave("figure_5_dmis_pkd_rmse.svg",
+ggsave("figure_5_dmis_pkd_rmse.pdf", device = cairo_pdf,
               width = 9, height = 4.135, units = "in")
 
 
 p_2
 
 
-ggsave("figure_5_dmis_pkd_spearman.svg",
+ggsave("figure_5_dmis_pkd_spearman.pdf", device = cairo_pdf,
               width = 9, height = 4.135, units = "in")
 
 
@@ -205,7 +205,7 @@ ggsave("figure_5_dmis_pkd_spearman.svg",
 
 all_preds <- data_df %>% left_join(gold) %>% group_by(`pKd_[M]`, exp_label, is_random, no_of_removed) %>% summarize(mean_pred = mean(`pKd_[M]_pred`)) %>% ungroup()
 
-levs <- c("no limit", "5 ≤ Kd", "5 ≤ Kd ≤ 9", "5.5 ≤ Kd ≤ 8.5", "6 ≤ Kd ≤ 8",  "Kd ≤ 8")
+levs <- c("no limit", "5≤Kd", "5≤Kd≤9", "5.5≤Kd≤8.5", "6≤Kd≤8",  "Kd≤8")
 
 all_preds <- mutate(all_preds, exp_label = factor(exp_label, 
                                       levels = rev(levs),
@@ -265,7 +265,7 @@ p2 <- ggplot(dmis_pkd_tidy) +
   #                            ends = "both", type = "open"),
   #                             # color = "#440154FF", 
   #              size = sz) +
-  ylim(-30000,230000) +
+  ylim(-100000,200000) +
   labs(x = "measured pKd", y = "number of compound-kinase training pairs")
 # ggplot(all_preds) + 
 #   geom_line(aes(y = abs(`pKd_[M]`-`mean_pred`),x =`pKd_[M]`, color = exp_label)) +
@@ -279,14 +279,14 @@ p2 <- ggplot(dmis_pkd_tidy) +
 
 p1
 
-ggsave("figure_5_dmis_sim_traces.pdf", 
+ggsave("figure_5_dmis_sim_traces.pdf",  device = cairo_pdf,
               width = 9, height = 8.5, units = "in")
 
 
 p2
 
 #for some reason this file is really giving me problems in Graphic as an svg, so lets save it as a fixed file 
-ggsave("figure_5_dmis_sim_hist.pdf", 
+ggsave("figure_5_dmis_sim_hist.pdf",  device = cairo_pdf,
   width = 6, height = 4.135, units = "in")
 
 
