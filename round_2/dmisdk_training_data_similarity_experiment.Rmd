@@ -33,6 +33,10 @@ rmse_py <- function(gold, pred){
   pred_py <- pred %>% np_array()
   rmse(gold_py, pred_py)
 }
+
+theme_set(theme_bw() +
+  theme(text = element_text(size = 15)))
+
 ```
 
 ```{r}
@@ -76,7 +80,6 @@ data_df_summary <- data_df %>%
 
 ggplot(data_df_summary)+
   geom_point(aes(x =  spearman, y =  rmse, color = as.character(threshold), shape = is_random)) +
-  theme_bw() +
   labs(x = "Spearman Correlation", y = "RMSE") +
   scale_color_manual(name="Tanimoto Threshold", values =c("0.1" = "#A80000",
                                                           "0.2" = "#C60968",
@@ -93,18 +96,16 @@ ggplot(data_df_summary)+
 
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)))+
   geom_col(aes(x = exp_label, y = mean_rmse), fill = "#75B3CE", stat = 'identity') +
-  theme_bw() +
   labs(y= "RMSE", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text( size=15, angle = 45, hjust = 1, vjust = 1)) +
   facet_grid(cols = vars(is_random), space = "free", scales = "free") +
   geom_text(aes(x = exp_label, y = mean_rmse, label = signif(no_of_removed/950732,2)), position = position_stack(vjust = 0.5), angle = 90, color = 'white') +
   geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse))
 
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)))+
   geom_col(aes(x = exp_label, y = mean_spearman), fill = "#E5A467", stat = 'identity') +
-  theme_bw() +
   labs(y= "Spearman Correlation", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size=15, angle = 45, hjust = 1, vjust = 1)) +
   facet_grid(cols = vars(is_random), space = "free", scales = "free") +
   geom_text(aes(x = exp_label, y = mean_spearman, label = signif(no_of_removed/950732,3)), position = position_stack(vjust = 0.5), angle = 90, color = 'white') +
     geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman))
@@ -116,18 +117,16 @@ ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_remov
 ```{r}
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)) %>% filter(threshold > 0.1))+
   geom_col(aes(x = exp_label, y = mean_rmse), fill = "#75B3CE", stat = 'identity') +
-  theme_bw() +
   labs(y= "RMSE", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size=15, angle = 45, hjust = 1, vjust = 1)) +
   facet_grid(cols = vars(is_random), space = "free", scales = "free") +
   geom_text(aes(x = exp_label, y = mean_rmse, label = no_of_removed), position = position_stack(vjust = 0.5), angle = 90, color = 'white') +
   geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse))
 
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman))  %>% filter(threshold > 0.1))+
   geom_col(aes(x = exp_label, y = mean_spearman), fill = "#E5A467", stat = 'identity') +
-  theme_bw() +
   labs(y= "Spearman Correlation", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size=15, angle = 45, hjust = 1, vjust = 1)) +
   facet_grid(cols = vars(is_random), space = "free", scales = "free") +
   geom_text(aes(x = exp_label, y = mean_spearman, label = no_of_removed), position = position_stack(vjust = 0.5), angle = 90, color = 'white') +
     geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman))
@@ -137,9 +136,8 @@ rmse_scal_fact <- 950732
   
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)) %>% filter(threshold > 0.1))+
   geom_col(aes(x = exp_label, y = mean_rmse), fill = "#75B3CE", stat = 'identity') +
-  theme_bw() +
   labs(y= "RMSE", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size=15, angle = 45, hjust = 1, vjust = 1)) +
   facet_grid(cols = vars(is_random), space = "free", scales = "free") +
   geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
   geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse)) +
@@ -147,9 +145,8 @@ ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_remov
 
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman))  %>% filter(threshold > 0.1))+
   geom_col(aes(x = exp_label, y = mean_spearman), fill = "#E5A467", stat = 'identity') +
-  theme_bw() +
   labs(y= "Spearman Correlation", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size=15, angle = 45, hjust = 1, vjust = 1)) +
   facet_grid(cols = vars(is_random), space = "free", scales = "free") +
     geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
     geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman)) + 
@@ -167,16 +164,14 @@ rmse_scal_fact <- 950732*0.6
   
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)) %>% filter(threshold > 0.1))+
   geom_bar(aes(x = exp_label, y = mean_rmse, fill = is_random), stat = 'identity', position = position_dodge(preserve = "single")) +
-  theme_bw() +
   labs(y= "RMSE", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size=15, angle = 45, hjust = 1, vjust = 1)) +
   geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
   geom_point(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
   geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, color = is_random), position = 'dodge') +
   scale_y_continuous(sec.axis = sec_axis(~.*0.6, name = "Proportion of removed pairs")) +
   scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#75B3CE")) +
-  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#75B3CE")) +
-  theme(axis.text = element_text(size = 10))
+  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#75B3CE"))
 
 
 ggsave("figure_3_rmse_r2_dmis_sim.pdf",  device = cairo_pdf,
@@ -186,16 +181,14 @@ ggsave("figure_3_rmse_r2_dmis_sim.pdf",  device = cairo_pdf,
 
 ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)) %>% filter(threshold > 0.1))+
   geom_bar(aes(x = exp_label, y = mean_spearman, fill = is_random), stat = 'identity', position = position_dodge(preserve = "single")) +
-  theme_bw() +
   labs(y= "Spearman correlation", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size=15, angle = 45, hjust = 1, vjust = 1)) +
   geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   geom_point(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, color = is_random), position = 'dodge') +
   scale_y_continuous(sec.axis = sec_axis(~.*2, name = "Proportion of removed pairs")) +
   scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#E5A467")) +
-  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#E5A467")) +
-  theme(axis.text = element_text(size = 10))
+  scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#E5A467")) 
 
 
 
@@ -238,8 +231,6 @@ ggplot(sim_subset) +
   geom_histogram(aes(x=tanimoto_similarity), boundary = 1, bins = 30)+
   geom_segment(data = bars, aes(x = max, y = height, xend = cutoff, yend = height), arrow = arrow(angle = 90, length = unit(0.025, "inches"),
        ends = "both", type = "open"), size = 1) +
-  theme_bw() +
-  theme(text = element_text(size = 10)) + 
   labs(x = "Minimum Tanimoto Similarity to Test Compounds", y = "Count")  +
   scale_x_continuous(breaks = seq(0,1, by = 0.2))
 

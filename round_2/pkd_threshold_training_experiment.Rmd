@@ -1,7 +1,7 @@
 ---
 title: "IDG-DREAM pKd Thresholding Experiment"
 author: "Robert Allaway"
-date: "9/30/2019"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: html_document
 ---
 
@@ -79,6 +79,10 @@ qed_pkd_tidy <- qed_pkd %>%
   rownames_to_column("cmpd") %>% 
   gather(key = "prot", value = "pKd", -cmpd) %>% 
   filter(pKd < 100)
+
+
+theme_set(theme_bw() +
+  theme(text = element_text(size = 15)))
 
 
 ```
@@ -163,9 +167,8 @@ data_df_summary <- data_df_summary %>% mutate(is_random_label = case_when(is_ran
   
 p_1 <- ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)))+
   geom_col(aes(x = reorder(exp_label, no_of_removed), y = mean_rmse, fill = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
-  theme_bw() +
   labs(y= "RMSE", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size=15, angle = 45, hjust = 1, vjust = 1)) +
   # facet_grid(cols = vars(is_random_label), space = "free", scales = "free") +
   geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, group = is_random_label, color = is_random_label), position = "dodge") +
   geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
@@ -186,15 +189,13 @@ p_1 <- ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_rem
   #                              "Kd ≤ 8" = "#440154FF")) +
       scale_color_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
   scale_fill_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
-    theme(text = element_text(size = 13)) +
     scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) 
 
 
 p_2 <-ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)))+
   geom_col(aes(x = reorder(exp_label, no_of_removed), y = mean_spearman, fill = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
-  theme_bw() +
   labs(y= "Spearman correlation", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  theme(axis.text.x = element_text(size = 15, angle = 45, hjust = 1, vjust = 1)) +
   # facet_grid(cols = vars(is_random_label), space = "free", scales = "free") +
   geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, group = is_random_label, color = is_random_label), position = "dodge") +
   geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
@@ -215,7 +216,6 @@ p_2 <-ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_remo
   #                              "Kd ≤ 8" = "#440154FF")) +
     scale_fill_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
   scale_color_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
-    theme(text = element_text(size = 13)) +
     scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) 
 
 
@@ -253,10 +253,8 @@ p1 <- ggplot(all_preds) +
   geom_smooth(aes(y = abs(`pKd_[M]`-`mean_pred`),x =`pKd_[M]`, color = exp_label, fill = exp_label), alpha = 0.2) +
   facet_wrap(~is_random_label, nrow = 2) +
   labs(x = "measured pKd", y = "absolute error of prediction") +
-  theme_bw() +
   scale_fill_viridis_d(name = "pKd threshold") +
-  scale_color_viridis_d(name = "pKd threshold") +
-    theme(text = element_text(size = 15))
+  scale_color_viridis_d(name = "pKd threshold")
 
 sz <- 1
 end <- 'butt'
@@ -264,45 +262,45 @@ join <- 'mitre'
 
 p2 <- ggplot(qed_pkd_tidy) + 
   geom_histogram(aes(x=pKd))+
-  geom_segment(aes(x = 1, y = -750, xend = 14, yend = -750), 
-               lineend = end, linejoin = join,
-               arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-                             ends = "both", type = "open"), 
-               # color = "#FDE725FF", 
-               size = sz) +
-  geom_segment(aes(x = 5, y = -4500, xend = 14, yend = -4500), 
-               lineend = end, linejoin = join,
-               arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-                             ends = "both", type = "open"), 
-               # color = "#7AD151FF", 
-               size = sz) +
-  geom_segment(aes(x = 5, y = -3750, xend = 9, yend = -3750), 
-               lineend = end, linejoin = join, 
-               arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-                             ends = "both", type = "open"),
-               # color = "#22A884FF", 
-               size = sz,) +
-  geom_segment(aes(x = 5.5, y = -3000, xend = 8.5, yend = -3000), 
-               lineend = end, linejoin = join,
-               arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-                             ends = "both", type = "open"),
-               # color = "#2A788EFF", 
-               size = sz) +
-  geom_segment(aes(x = 6, y = -2250, xend = 8, yend = -2250), 
-               lineend = end, linejoin = join, 
-               arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-                             ends = "both", type = "open"),
-               # color = "#414487FF", 
-               size = sz) +
-  geom_segment(aes(x = 1, y = -1500, xend = 8, yend = -1500), 
-               lineend = end, linejoin = join,
-               arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-                             ends = "both", type = "open"),
-                              # color = "#440154FF", 
-               size = sz) +
-  labs(x = "measured pKd", y = "number of compound-kinase training pairs") +
-  theme_bw() +
-  theme(text = element_text(size = 15))
+  # geom_segment(aes(x = 1, y = -750, xend = 14, yend = -750), 
+  #              lineend = end, linejoin = join,
+  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #                            ends = "both", type = "open"), 
+  #              # color = "#FDE725FF", 
+  #              size = sz) +
+  # geom_segment(aes(x = 5, y = -4500, xend = 14, yend = -4500), 
+  #              lineend = end, linejoin = join,
+  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #                            ends = "both", type = "open"), 
+  #              # color = "#7AD151FF", 
+  #              size = sz) +
+  # geom_segment(aes(x = 5, y = -3750, xend = 9, yend = -3750), 
+  #              lineend = end, linejoin = join, 
+  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #                            ends = "both", type = "open"),
+  #              # color = "#22A884FF", 
+  #              size = sz,) +
+  # geom_segment(aes(x = 5.5, y = -3000, xend = 8.5, yend = -3000), 
+  #              lineend = end, linejoin = join,
+  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #                            ends = "both", type = "open"),
+  #              # color = "#2A788EFF", 
+  #              size = sz) +
+  # geom_segment(aes(x = 6, y = -2250, xend = 8, yend = -2250), 
+  #              lineend = end, linejoin = join, 
+  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #                            ends = "both", type = "open"),
+  #              # color = "#414487FF", 
+  #              size = sz) +
+  # geom_segment(aes(x = 1, y = -1500, xend = 8, yend = -1500), 
+  #              lineend = end, linejoin = join,
+  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #                            ends = "both", type = "open"),
+  #                             # color = "#440154FF", 
+  #              size = sz) +
+  ylim(-5000,12500) +
+  labs(x = "measured pKd", y = "number of compound-kinase training pairs")
+
 
 # ggplot(all_preds) + 
 #   geom_line(aes(y = abs(`pKd_[M]`-`mean_pred`),x =`pKd_[M]`, color = exp_label)) +
@@ -316,14 +314,14 @@ p2 <- ggplot(qed_pkd_tidy) +
 
 p1
 
-ggsave("figure_5_qed_sim_traces.svg", 
+ggsave("figure_5_qed_sim_traces.pdf", 
               width = 9, height = 8.5, units = "in")
 
 
 p2
 
 #for some reason this file is really giving me problems in Graphic as an svg, so lets save it as a fixed file 
-ggsave("figure_5_qed_sim_hist.png", 
+ggsave("figure_5_qed_sim_hist.pdf", 
   width = 6, height = 4.135, units = "in")
 
 
