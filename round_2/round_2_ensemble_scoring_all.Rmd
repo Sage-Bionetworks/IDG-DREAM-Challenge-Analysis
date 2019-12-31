@@ -138,7 +138,14 @@ names(paths) <- best_spearman_by_team$objectId
 Then we map all of these ranked prediction files and gather the prediction values into one tidy data frame. 
 
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
-preds <- pmap(.l = list(path = paths, renameColname = 'pKd_[M]_pred', newName = names(paths)), .f = challengescoring:::.read_and_rename) %>%
+
+read_and_rename <- function(path, renameColname, newName){
+  foo <- readr::read_csv(path) %>% dplyr::rename({{ newName }} :=  {{ renameColname }})
+  foo
+}
+
+
+preds <- pmap(.l = list(path = paths, renameColname = 'pKd_[M]_pred', newName = names(paths)), .f = read_and_rename) %>%
   purrr::reduce(left_join) %>%
   tidyr::gather(objectId, pred, -Compound_SMILES, -Compound_InchiKeys, -Compound_Name, -UniProt_Id, -Entrez_Gene_Symbol, -DiscoveRx_Gene_Symbol) %>% 
   left_join(select(best_spearman_by_team, objectId, rank))
@@ -274,9 +281,9 @@ ensemble_scores <- bind_rows(median_results_spearman, mean_results_spearman, ran
   set_names(c("ensemble_model", "score", "iteration")) %>% 
   mutate(iteration = as.numeric(iteration)) %>% 
   mutate(label = case_when(iteration == 1 & ensemble_model == "spearman_mean_ensemble"  ~ "Q.E.D.",
-                           iteration == 2 & ensemble_model == "spearman_mean_ensemble"  ~ "1 + Gregory Koytiger",
-                           iteration == 3 & ensemble_model == "spearman_mean_ensemble" ~ "2 + AI Winter is Coming",
-                           iteration == 4 & ensemble_model == "spearman_mean_ensemble" ~ "3 + Oliver Labayle", 
+                           iteration == 2 & ensemble_model == "spearman_mean_ensemble"  ~ "+ Gregory Koytiger",
+                           iteration == 3 & ensemble_model == "spearman_mean_ensemble" ~ "+ AI Winter is Coming",
+                           iteration == 4 & ensemble_model == "spearman_mean_ensemble" ~ "+ Oliver Labayle", 
                            iteration > 4 | ensemble_model != "spearman_mean_ensemble" ~ ""))
 
 ```
@@ -327,9 +334,9 @@ ensemble_scores_pap <- bind_rows( mean_results_spearman,mean_results_rmse_paper)
   set_names(c("ensemble_model", "score", "iteration")) %>% 
   mutate(iteration = as.numeric(iteration)) %>% 
   mutate(label = case_when(iteration == 1  ~ "Q.E.D.",
-                           iteration == 2  ~ "1 + Gregory Koytiger",
-                           iteration == 3  ~ "2 + AI Winter is Coming",
-                           iteration == 4  ~ "3 + Oliver Labayle", 
+                           iteration == 2  ~ "+ Gregory Koytiger",
+                           iteration == 3  ~ "+ AI Winter is Coming",
+                           iteration == 4  ~ "+ Oliver Labayle", 
                            iteration > 4 ~ NA_character_)) %>% 
   mutate(ensemble_model_type = case_when(grepl("*spearman*", ensemble_model) ~ "Spearman",
                            grepl("*rmse*", ensemble_model)  ~ "RMSE"))
@@ -360,9 +367,9 @@ ggplot(data = ensemble_scores_pap %>%
                                 "#00d91d"),
                      name = "",
                      labels = c("Q.E.D",
-                                "1 + Gregory Koytiger", 
-                                "2 + AI Winter is Coming",
-                                '3 + Oliver Labayle')) +
+                                "+ Gregory Koytiger", 
+                                "+ AI Winter is Coming",
+                                '+ Oliver Labayle')) +
   scale_linetype_manual("",values=c("RMSE"=2,"Spearman"=1)) +
   scale_y_continuous(sec.axis = sec_axis(~.*scal_fact, name = "RMSE")) +
   labs(x = "Number of Top Models", y = "Spearman Correlation") +
@@ -510,10 +517,10 @@ ensemble_scores <- bind_rows(median_results_rmse, mean_results_rmse, rank_result
   set_names(c("ensemble_model", "score", "iteration")) %>% 
   mutate(iteration = as.numeric(iteration)) %>% 
   mutate(label = case_when(iteration == 1 & ensemble_model == "rmse_rank_ensemble"  ~ "Gregory Koytiger",
-                           iteration == 2 & ensemble_model == "rmse_rank_ensemble"  ~ "1 + AI Winter is Coming",
-                           iteration == 3 & ensemble_model == "rmse_rank_ensemble" ~ "2 + DMIS_DK",
-                           iteration == 4 & ensemble_model == "rmse_rank_ensemble" ~ "3 + ljwyc", 
-                           iteration == 5 & ensemble_model == "rmse_rank_ensemble" ~ "4 + Q.E.D", 
+                           iteration == 2 & ensemble_model == "rmse_rank_ensemble"  ~ "+ AI Winter is Coming",
+                           iteration == 3 & ensemble_model == "rmse_rank_ensemble" ~ "+ DMIS_DK",
+                           iteration == 4 & ensemble_model == "rmse_rank_ensemble" ~ "+ ljwyc", 
+                           iteration == 5 & ensemble_model == "rmse_rank_ensemble" ~ "+ Q.E.D", 
                            iteration > 5 | ensemble_model != "rmse_rank_ensemble" ~ ""))
 
 ```
@@ -678,19 +685,20 @@ ggplot(data = tidy_res) +
 ```
 
 ```{r}
-write_csv(mean_preds_sp,"spearman_mean_ensemble_models.csv")
-write_csv(mean_preds_rm,"rmse_mean_ensemble_models.csv")
-write_csv(median_preds_sp,"spearman_median_ensemble_models.csv")
-write_csv(median_preds_rm,"rmse_median_ensemble_models.csv")
-write_csv(rank_preds_sp,"spearman_rank_ensemble_models.csv")
-write_csv(rank_preds_rm,"rmse_rank_ensemble_models.csv")
-
-syn$store(synapse$File("spearman_mean_ensemble_models.csv", parentId = "syn18700959"))
-syn$store(synapse$File("rmse_mean_ensemble_models.csv", parentId = "syn18700959"))
-syn$store(synapse$File("spearman_median_ensemble_models.csv", parentId = "syn18700959"))
-syn$store(synapse$File("rmse_median_ensemble_models.csv", parentId = "syn18700959"))
-syn$store(synapse$File("spearman_rank_ensemble_models.csv", parentId = "syn18700959"))
-syn$store(synapse$File("rmse_rank_ensemble_models.csv", parentId = "syn18700959"))
+#Stored once, no need to do so again :)
+# write_csv(mean_preds_sp,"spearman_mean_ensemble_models.csv")
+# write_csv(mean_preds_rm,"rmse_mean_ensemble_models.csv")
+# write_csv(median_preds_sp,"spearman_median_ensemble_models.csv")
+# write_csv(median_preds_rm,"rmse_median_ensemble_models.csv")
+# write_csv(rank_preds_sp,"spearman_rank_ensemble_models.csv")
+# write_csv(rank_preds_rm,"rmse_rank_ensemble_models.csv")
+# 
+# syn$store(synapse$File("spearman_mean_ensemble_models.csv", parentId = "syn18700959"))
+# syn$store(synapse$File("rmse_mean_ensemble_models.csv", parentId = "syn18700959"))
+# syn$store(synapse$File("spearman_median_ensemble_models.csv", parentId = "syn18700959"))
+# syn$store(synapse$File("rmse_median_ensemble_models.csv", parentId = "syn18700959"))
+# syn$store(synapse$File("spearman_rank_ensemble_models.csv", parentId = "syn18700959"))
+# syn$store(synapse$File("rmse_rank_ensemble_models.csv", parentId = "syn18700959"))
 
 ```
 
