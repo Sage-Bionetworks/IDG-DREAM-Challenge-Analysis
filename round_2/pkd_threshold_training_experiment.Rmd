@@ -6,6 +6,8 @@ output: html_document
 ---
 
 ```{bash eval=FALSE}
+##this document contains files that refer to "figure 5" but in the final manuscript these may end up in a different figure. 
+
 # we ran the following docker commants with the listed container to get these results: 
 
 ##actual dropouts:
@@ -22,6 +24,15 @@ output: html_document
 
  docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="1" -e HIGH="8" docker.synapse.org/syn18519352/qed-paff
 
+ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="4" -e HIGH="10"  docker.synapse.org/syn18519352/qed-paff
+
+ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="4.5" -e HIGH="9.5"  docker.synapse.org/syn18519352/qed-paff
+ 
+ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="6.5" -e HIGH="7.5" docker.synapse.org/syn18519352/qed-paff
+ 
+  docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="6.75" -e HIGH="7.25" docker.synapse.org/syn18519352/qed-paff
+ 
+ 
 ##control runs:
 
 docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="1" -e HIGH="8" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
@@ -35,6 +46,14 @@ docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW
 docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="6" -e HIGH="8" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
 
 docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="1" -e HIGH="14" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
+
+docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="4" -e HIGH="10" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
+
+docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="4.5" -e HIGH="9.5" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
+
+docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="6.5" -e HIGH="7.5" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
+
+docker run -it --rm -v ${PWD}/input:/input -v ${PWD}/output:/output -v ${PWD}/SW_based_prediction:/SW_based_prediction  -e LOW="6.75" -e HIGH="7.25" -e CONTROL_MODE="1" -e CONTROL_NUM="5" docker.synapse.org/syn18519352/qed-paff:v2
 ```
 
 
@@ -44,10 +63,58 @@ library(tidyverse)
 library(Cairo)
 library(svglite)
 
-use_python("/usr/local/bin/python2")
+# conda environment:::::
+
+# name: idg-dream
+# channels:
+#   - defaults
+# dependencies:
+#   - blas=1.0=mkl
+#   - ca-certificates=2019.5.15=1
+#   - certifi=2019.6.16=py27_1
+#   - intel-openmp=2019.4=233
+#   - libcxx=4.0.1=hcfea43d_1
+#   - libcxxabi=4.0.1=hcfea43d_1
+#   - libedit=3.1.20181209=hb402a30_0
+#   - libffi=3.2.1=h475c297_4
+#   - libgfortran=3.0.1=h93005f0_2
+#   - mkl=2019.4=233
+#   - mkl-service=2.3.0=py27hfbe908c_0
+#   - mkl_fft=1.0.14=py27h5e564d8_0
+#   - mkl_random=1.0.2=py27h27c97d8_0
+#   - ncurses=6.1=h0a44026_1
+#   - numpy=1.16.5=py27hacdab7b_0
+#   - numpy-base=1.16.5=py27h6575580_0
+#   - pip=19.2.2=py27_0
+#   - python=2.7.16=h97142e2_5
+#   - readline=7.0=h1de35cc_5
+#   - scikit-learn=0.20.3=py27h27c97d8_0
+#   - scipy=1.2.1=py27h1410ff5_0
+#   - setuptools=41.0.1=py27_0
+#   - sqlite=3.29.0=ha441bb4_0
+#   - tk=8.6.8=ha441bb4_0
+#   - wheel=0.33.4=py27_0
+#   - zlib=1.2.11=h1de35cc_3
+#   - pip:
+#     - backports-csv==1.0.7
+#     - chardet==3.0.4
+#     - configparser==4.0.2
+#     - deprecated==1.2.4
+#     - entrypoints==0.3
+#     - enum==0.4.7
+#     - future==0.17.1
+#     - idna==2.8
+#     - keyring==12.0.2
+#     - requests==2.22.0
+#     - six==1.12.0
+#     - synapseclient==1.9.3
+#     - urllib3==1.25.4
+#     - wrapt==1.11.2
+# prefix: //anaconda3/envs/idg-dream
+
+use_condaenv('idg-dream', required = T)
 synapse <- import("synapseclient")
 syn <- synapse$Synapse()
-synutils <- synapse$utils
 syn$login()
 source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Drug-Kinase-Challenge/master/round1b/score/bin/evaluation_metrics_python2.py')
 
@@ -80,10 +147,13 @@ qed_pkd_tidy <- qed_pkd %>%
   gather(key = "prot", value = "pKd", -cmpd) %>% 
   filter(pKd < 100)
 
-
 theme_set(theme_bw() +
   theme(text = element_text(size = 15)))
 
+no_of_removed_4_10 <- nrow(qed_pkd_tidy) -nrow(qed_pkd_tidy %>% filter(pKd<=10, pKd>=4))
+no_of_removed_45_95 <- nrow(qed_pkd_tidy) -nrow(qed_pkd_tidy %>% filter(pKd<=9.5, pKd>=4.5))
+no_of_removed_675_725 <- nrow(qed_pkd_tidy) -nrow(qed_pkd_tidy %>% filter(pKd<=7.25, pKd>=6.75))
+no_of_removed_65_75 <- nrow(qed_pkd_tidy) -nrow(qed_pkd_tidy %>% filter(pKd<=7.5,pKd>=6.5))
 
 ```
 
@@ -93,17 +163,17 @@ theme_set(theme_bw() +
 
 ids <- tibble::tribble(
   ~id, ~lower_limit, ~upper_limit, ~is_random, ~exp_label, ~no_of_removed, ~random_iteration,
-  "syn20825281", 1, 14, F, "no limit", 0, 0,
+  "syn20825281", 1, 14, F, "AD", 0, 0,
   "syn20825274", 1, 8,  F, "Kd≤8", 6726, 0,
   "syn20825278", 5.5, 8.5, F, "5.5≤Kd≤8.5", 16126, 0,
   "syn20825275", 5, 14, F, "5≤Kd", 3096, 0,
   "syn20825279", 5, 9, F, "5≤Kd≤9", 4774, 0,
   "syn20825280", 6, 8, F, "6≤Kd≤8", 29933, 0,
-  "syn20834496", 1, 14, T, "no limit", 0, 0, 
-  "syn20834497", 1, 14, T, "no limit", 0, 1,
-  "syn20834498", 1, 14, T, "no limit", 0, 2,
-  "syn20834499", 1, 14, T, "no limit", 0, 3, 
-  "syn20834500", 1, 14, T, "no limit", 0, 4, 
+  # "syn20834496", 1, 14, T, "no limit", 0, 0, ##not include these because they are in principle identical to all data
+  # "syn20834497", 1, 14, T, "no limit", 0, 1,
+  # "syn20834498", 1, 14, T, "no limit", 0, 2,
+  # "syn20834499", 1, 14, T, "no limit", 0, 3, 
+  # "syn20834500", 1, 14, T, "no limit", 0, 4, 
   "syn20834470", 1, 8, T, "Kd≤8", 6726, 0, 
   "syn20834471", 1, 8, T, "Kd≤8", 6726, 1,
   "syn20834472", 1, 8, T, "Kd≤8", 6726, 2,
@@ -128,13 +198,43 @@ ids <- tibble::tribble(
   "syn20834492", 6, 8, T, "6≤Kd≤8", 29933, 1,
   "syn20834493", 6, 8, T, "6≤Kd≤8", 29933, 2,
   "syn20834494", 6, 8, T, "6≤Kd≤8", 29933, 3, 
-  "syn20834495", 6, 8, T, "6≤Kd≤8", 29933, 4)
+  "syn20834495", 6, 8, T, "6≤Kd≤8", 29933, 4,
+  "syn24168003", 6.75, 7.25, F, "6.75≤Kd≤7.25", no_of_removed_675_725, 0,
+  "syn24170257", 6.75, 7.25, F, "6.75≤Kd≤7.25", no_of_removed_675_725, 1,
+  "syn24168002", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 0, 
+  "syn24168001", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 1,
+  "syn24168000", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 2, 
+  "syn24167999", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 3, 
+  "syn24167998", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 4, 
+  "syn24167997", 6.5, 7.5, F, "6.5≤Kd≤7.5", no_of_removed_65_75, 0, 
+  "syn24170256", 6.5, 7.5, F, "6.5≤Kd≤7.5", no_of_removed_65_75, 1, 
+  "syn24167996", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 0, 
+  "syn24167995", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 1, 
+  "syn24167994", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 2, 
+  "syn24167993", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 3, 
+  "syn24167992", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 4, 
+  "syn24167991", 4, 10, F, "4≤Kd≤10", no_of_removed_4_10, 0, 
+  "syn24167990", 4, 10, T, "4≤Kd≤10", no_of_removed_4_10, 0, 
+  "syn24167989", 4, 10, T, "4≤Kd≤10", no_of_removed_4_10, 1, 
+  "syn24167988", 4, 10, T, "4≤Kd≤10", no_of_removed_4_10, 2, 
+  "syn24167987", 4, 10, T, "4≤Kd≤10", no_of_removed_4_10, 3, 
+  "syn24167986", 4, 10, T, "4≤Kd≤10", no_of_removed_4_10, 4, 
+  "syn24167985", 4.5, 9.5, F, "4.5≤Kd≤9.5", no_of_removed_45_95, 0, 
+  "syn24167984", 4.5, 9.5, T, "4.5≤Kd≤9.5", no_of_removed_45_95, 0, 
+  "syn24167983", 4.5, 9.5, T, "4.5≤Kd≤9.5", no_of_removed_45_95, 1, 
+  "syn24167982", 4.5, 9.5, T, "4.5≤Kd≤9.5", no_of_removed_45_95, 2, 
+  "syn24167981", 4.5, 9.5, T, "4.5≤Kd≤9.5", no_of_removed_45_95, 3, 
+  "syn24167980", 4.5, 9.5, T, "4.5≤Kd≤9.5", no_of_removed_45_95, 4)
 
 
 data <- lapply(ids$id, function(x){
   syn$get(x)$path %>% read_csv()
 })
 
+
+```
+
+```{r}
 
 names(data) <- ids$id
 
@@ -163,72 +263,44 @@ rmse_scal_fact <- 60462
 
 
 data_df_summary <- data_df_summary %>% mutate(is_random_label = case_when(is_random == T ~ "random control",
-                                     is_random == F ~ "pKd dropout")) 
+                                     is_random == F & exp_label != "AD"~ "pKd dropout",
+                                     is_random == F & exp_label == "AD" ~ "All Training Data")) 
   
 p_1 <- ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)))+
-  geom_col(aes(x = reorder(exp_label, no_of_removed), y = mean_rmse, fill = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
-  labs(y= "RMSE", x = "Tanimoto Threshold") +
+  geom_col(aes(x = reorder(exp_label, -no_of_removed), y = mean_rmse, fill = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
+  labs(y= "RMSE", x = "pKd Threshold") +
   theme(axis.text.x = element_text(size=10)) +
   # facet_grid(cols = vars(is_random_label), space = "free", scales = "free") +
   geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, group = is_random_label, color = is_random_label), position = "dodge") +
   geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
     geom_point(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
-  # scale_fill_manual(name = "pKd threshold",
-  #                   values = c("no limit" = "#FDE725FF", 
-  #                              "5≤Kd" = "#7AD151FF",
-  #                              "5≤Kd≤9" = "#22A884FF", 
-  #                              "5.5≤Kd≤8.5" = "#2A788EFF", 
-  #                              "6≤Kd≤8" = "#414487FF",  
-  #                              "Kd≤8" = "#440154FF")) +
-  #   scale_color_manual(name = "pKd threshold",
-  #                   values = c("no limit" = "#FDE725FF", 
-  #                              "5≤Kd" = "#7AD151FF",
-  #                              "5≤Kd≤9" = "#22A884FF", 
-  #                              "5.5≤Kd≤8.5" = "#2A788EFF", 
-  #                              "6≤Kd≤8" = "#414487FF",  
-  #                              "Kd≤8" = "#440154FF")) +
-      scale_color_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
-  scale_fill_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
+      scale_color_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E", "All Training Data"="#E5A467")) +
+  scale_fill_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E", "All Training Data"="#E5A467")) +
     scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) 
 
 
 p_2 <-ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)))+
-  geom_col(aes(x = reorder(exp_label, no_of_removed), y = mean_spearman, fill = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
-  labs(y= "Spearman correlation", x = "Tanimoto Threshold") +
-  theme(axis.text.x = element_text(size = 10)) +
+  geom_col(aes(x = reorder(exp_label, -no_of_removed), y = mean_spearman, fill = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
+  labs(y= "Spearman correlation", x = "pKd threshold") +
+  theme(axis.text.x = element_text(size = 8)) +
   # facet_grid(cols = vars(is_random_label), space = "free", scales = "free") +
   geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, group = is_random_label, color = is_random_label), position = "dodge") +
   geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   geom_point(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
-  # scale_fill_manual(name = "pKd threshold",
-  #                   values = c("no limit" = "#FDE725FF", 
-  #                              "5≤Kd" = "#7AD151FF",
-  #                              "5≤Kd≤9" = "#22A884FF", 
-  #                              "5.5≤Kd≤8.5" = "#2A788EFF", 
-  #                              "6≤Kd≤8" = "#414487FF",  
-  #                              "Kd≤8" = "#440154FF")) +
-  #   scale_color_manual(name = "pKd threshold",
-  #                   values = c("no limit" = "#FDE725FF", 
-  #                              "5≤Kd" = "#7AD151FF",
-  #                              "5≤Kd≤9" = "#22A884FF", 
-  #                              "5.5≤Kd≤8.5" = "#2A788EFF", 
-  #                              "6≤Kd≤8" = "#414487FF",  
-  #                              "Kd≤8" = "#440154FF")) +
-    scale_fill_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
-  scale_color_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E")) +
-    scale_y_continuous(sec.axis = sec_axis(~., name = "Proportion of removed pairs")) 
+      scale_color_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E", "All Training Data"="#E5A467")) +
+  scale_fill_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E", "All Training Data"="#E5A467")) +
+    scale_y_continuous(sec.axis = sec_axis(~.*2, name = "Proportion of removed pairs"))
 
 
 p_1
 
-ggsave("figure_5_qed_sim_rmse.pdf", device = cairo_pdf,
+ggsave("figure_5_qed_pkd_rmse.pdf", device = cairo_pdf,
               width = 9, height = 4.135, units = "in")
 
 
 p_2
 
-
-ggsave("figure_5_qed_sim_spearman.pdf", device = cairo_pdf,
+ggsave("figure_5_qed_pkd_spearman.pdf", device = cairo_pdf,
               width = 9, height = 4.135, units = "in")
 
 
@@ -238,13 +310,15 @@ ggsave("figure_5_qed_sim_spearman.pdf", device = cairo_pdf,
 
 all_preds <- data_df %>% left_join(gold) %>% group_by(`pKd_[M]`, exp_label, is_random, no_of_removed) %>% summarize(mean_pred = mean(`pKd_[M]_pred`)) %>% ungroup()
 
-levs <- c("no limit", "5≤Kd", "5≤Kd≤9", "5.5≤Kd≤8.5", "6≤Kd≤8",  "Kd≤8")
+# levs <- c("AD", "4≤Kd≤10","4.5≤Kd≤9.5", "5≤Kd≤9", "5.5≤Kd≤8.5", "6.5≤Kd≤7.5", "6.75≤Kd≤7.25", "6≤Kd≤8",  "Kd≤8", "")
 
-all_preds <- mutate(all_preds, exp_label = factor(exp_label, 
-                                      levels = rev(levs),
-                                      ordered = T)) %>% 
+all_preds <- all_preds %>% 
+  # mutate(exp_label = factor(exp_label, 
+  #                                     levels = rev(levs),
+  #                                     ordered = T)) %>%
   mutate(is_random_label = case_when(is_random == T ~ "random control",
-                                     is_random == F ~ "pKd dropout")) 
+                                     is_random == F & exp_label != "AD"~ "pKd dropout",
+                                     is_random == F & exp_label == "AD" ~ "All Training Data")) 
 
 
 # library(cowplot)
@@ -257,49 +331,50 @@ p1 <- ggplot(all_preds) +
   scale_color_viridis_d(name = "pKd threshold")
 
 sz <- 1
-end <- 'butt'
+end <- 'square'
 join <- 'mitre'
 
 p2 <- ggplot(qed_pkd_tidy) + 
   geom_histogram(aes(x=pKd))+
-  # geom_segment(aes(x = 1, y = -750, xend = 14, yend = -750), 
+  # geom_segment(aes(x = 1, y = -1000, xend = 14, yend = -1000),
   #              lineend = end, linejoin = join,
-  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-  #                            ends = "both", type = "open"), 
-  #              # color = "#FDE725FF", 
+  #              # arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #              #               ends = "both", type = "open"),
+  #              # color = "#FDE725FF",
   #              size = sz) +
-  # geom_segment(aes(x = 5, y = -4500, xend = 14, yend = -4500), 
+  # geom_segment(aes(x = 5, y = -6000, xend = 14, yend = -6000),
   #              lineend = end, linejoin = join,
-  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-  #                            ends = "both", type = "open"), 
-  #              # color = "#7AD151FF", 
+  #              # arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #              #               ends = "both", type = "open"),
+  #              # color = "#7AD151FF",
   #              size = sz) +
-  # geom_segment(aes(x = 5, y = -3750, xend = 9, yend = -3750), 
-  #              lineend = end, linejoin = join, 
-  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-  #                            ends = "both", type = "open"),
-  #              # color = "#22A884FF", 
+  # geom_segment(aes(x = 5, y = -5000, xend = 9, yend = -5000),
+  #              lineend = end, linejoin = join,
+  #              # arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #              #               ends = "both", type = "open"),
+  #              # color = "#22A884FF",
   #              size = sz,) +
-  # geom_segment(aes(x = 5.5, y = -3000, xend = 8.5, yend = -3000), 
+  # geom_segment(aes(x = 5.5, y = -4000, xend = 8.5, yend = -4000),
   #              lineend = end, linejoin = join,
-  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-  #                            ends = "both", type = "open"),
-  #              # color = "#2A788EFF", 
+  #              # arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #              #               ends = "both", type = "open"),
+  #              # color = "#2A788EFF",
   #              size = sz) +
-  # geom_segment(aes(x = 6, y = -2250, xend = 8, yend = -2250), 
-  #              lineend = end, linejoin = join, 
-  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-  #                            ends = "both", type = "open"),
-  #              # color = "#414487FF", 
-  #              size = sz) +
-  # geom_segment(aes(x = 1, y = -1500, xend = 8, yend = -1500), 
+  # geom_segment(aes(x = 6, y = -3000, xend = 8, yend = -3000),
   #              lineend = end, linejoin = join,
-  #              arrow = arrow(angle = 90, length = unit(0.05, "inches"),
-  #                            ends = "both", type = "open"),
-  #                             # color = "#440154FF", 
+  #              # arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #              #               ends = "both", type = "open"),
+  #              # color = "#414487FF",
   #              size = sz) +
-  ylim(-5000,12500) +
-  labs(x = "measured pKd", y = "number of compound-kinase training pairs")
+  # geom_segment(aes(x = 1, y = -2000, xend = 8, yend = -2000),
+  #              lineend = end, linejoin = join,
+  #              # arrow = arrow(angle = 90, length = unit(0.05, "inches"),
+  #              #               ends = "both", type = "open"),
+  #                             # color = "#440154FF",
+  #              size = sz) +
+  # scale_y_continuous(breaks = scales::pretty_breaks())+
+  # ylim(-6000,12500) +
+  labs(x = "Measured pKd", y = "Number of training pairs")
 
 
 # ggplot(all_preds) + 
@@ -314,20 +389,26 @@ p2 <- ggplot(qed_pkd_tidy) +
 
 p1
 
-ggsave("figure_5_qed_sim_traces.pdf",  device = cairo_pdf,
+ggsave("figure_5_qed_pkd_traces.pdf",  device = cairo_pdf,
               width = 9, height = 8.5, units = "in")
 
 
 p2
 
 #for some reason this file is really giving me problems in Graphic as an svg, so lets save it as a fixed file 
-ggsave("figure_5_qed_sim_hist.pdf", device = cairo_pdf, 
+ggsave("figure_5_qed_pkd_hist.pdf", device = cairo_pdf, 
   width = 6, height = 4.135, units = "in")
 
 
-cowplot::plot_grid(p_1, p_2, p1, p2, ncol = 1, align = 'v', axis = 'rl', rel_heights = c(0.16,0.16,0.25,0.25))
+# cowplot::plot_grid(p_1, p_2, p1, p2, ncol = 1, align = 'v', axis = 'rl', rel_heights = c(0.16,0.16,0.25,0.25))
+
+cowplot::plot_grid(p_2, p2, ncol = 2, align = 'h', axis = 'rl', rel_widths = c(0.5,0.33))
+
 
 ggsave("pkd_threshold_experiment_qed.pdf",  device = cairo_pdf,
-               width = 10, height = 20, units = "in")
+               width = 16, height = 4, units = "in")
+
+
+
    
 ```

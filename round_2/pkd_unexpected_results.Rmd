@@ -1,0 +1,194 @@
+---
+title: "IDG-DREAM pKd Thresholding Experiment - post analysis"
+author: "Robert Allaway"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(reticulate)
+library(tidyverse)
+library(Cairo)
+library(svglite)
+
+# conda environment:::::
+
+# name: idg-dream
+# channels:
+#   - defaults
+# dependencies:
+#   - blas=1.0=mkl
+#   - ca-certificates=2019.5.15=1
+#   - certifi=2019.6.16=py27_1
+#   - intel-openmp=2019.4=233
+#   - libcxx=4.0.1=hcfea43d_1
+#   - libcxxabi=4.0.1=hcfea43d_1
+#   - libedit=3.1.20181209=hb402a30_0
+#   - libffi=3.2.1=h475c297_4
+#   - libgfortran=3.0.1=h93005f0_2
+#   - mkl=2019.4=233
+#   - mkl-service=2.3.0=py27hfbe908c_0
+#   - mkl_fft=1.0.14=py27h5e564d8_0
+#   - mkl_random=1.0.2=py27h27c97d8_0
+#   - ncurses=6.1=h0a44026_1
+#   - numpy=1.16.5=py27hacdab7b_0
+#   - numpy-base=1.16.5=py27h6575580_0
+#   - pip=19.2.2=py27_0
+#   - python=2.7.16=h97142e2_5
+#   - readline=7.0=h1de35cc_5
+#   - scikit-learn=0.20.3=py27h27c97d8_0
+#   - scipy=1.2.1=py27h1410ff5_0
+#   - setuptools=41.0.1=py27_0
+#   - sqlite=3.29.0=ha441bb4_0
+#   - tk=8.6.8=ha441bb4_0
+#   - wheel=0.33.4=py27_0
+#   - zlib=1.2.11=h1de35cc_3
+#   - pip:
+#     - backports-csv==1.0.7
+#     - chardet==3.0.4
+#     - configparser==4.0.2
+#     - deprecated==1.2.4
+#     - entrypoints==0.3
+#     - enum==0.4.7
+#     - future==0.17.1
+#     - idna==2.8
+#     - keyring==12.0.2
+#     - requests==2.22.0
+#     - six==1.12.0
+#     - synapseclient==1.9.3
+#     - urllib3==1.25.4
+#     - wrapt==1.11.2
+# prefix: //anaconda3/envs/idg-dream
+
+use_condaenv('idg-dream', required = T)
+synapse <- import("synapseclient")
+syn <- synapse$Synapse()
+syn$login()
+source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Drug-Kinase-Challenge/master/round1b/score/bin/evaluation_metrics_python2.py')
+
+gold <- syn$get("syn18421225")$path %>% read_csv %>%
+  mutate(comp = paste0(Compound_InchiKeys,"_",UniProt_Id,"_",DiscoveRx_Gene_Symbol)) 
+
+qed_pkd <- syn$get("syn20690323")$path %>% 
+  read_delim(delim = " ", col_names = F) 
+qed_cmpd <- syn$get("syn20690840")$path %>% 
+  read_delim(delim = "\t", ,col_names = F)
+qed_prot <- syn$get("syn20690841")$path %>% 
+  read_delim(delim = "\t", col_names = F)
+
+qed_pkd_tidy <- qed_pkd %>% 
+  magrittr::set_colnames(qed_prot$X1) %>% 
+  magrittr::set_rownames(qed_cmpd$X1) %>% 
+  rownames_to_column("cmpd") %>% 
+  gather(key = "prot", value = "pKd", -cmpd) %>% 
+  filter(pKd < 100)
+
+theme_set(theme_bw() +
+  theme(text = element_text(size = 15)))
+
+no_of_removed_4_10 <- nrow(qed_pkd_tidy) -nrow(qed_pkd_tidy %>% filter(pKd<=10, pKd>=4))
+no_of_removed_45_95 <- nrow(qed_pkd_tidy) -nrow(qed_pkd_tidy %>% filter(pKd<=9.5, pKd>=4.5))
+no_of_removed_675_725 <- nrow(qed_pkd_tidy) -nrow(qed_pkd_tidy %>% filter(pKd<=7.25, pKd>=6.75))
+no_of_removed_65_75 <- nrow(qed_pkd_tidy) -nrow(qed_pkd_tidy %>% filter(pKd<=7.5,pKd>=6.5))
+
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+## We are describing the cutoffs of LOW = 1 and HIGH= 14 as "no limit" as there were no training data points that were outside this range.
+
+ids <- tibble::tribble(
+  ~id, ~lower_limit, ~upper_limit, ~is_random, ~exp_label, ~no_of_removed, ~random_iteration,
+  "syn20825281", 1, 14, F, "AD", 0, 0,
+  "syn20825274", 1, 8,  F, "Kd≤8", 6726, 0,
+  "syn20825278", 5.5, 8.5, F, "5.5≤Kd≤8.5", 16126, 0,
+  "syn20825275", 5, 14, F, "5≤Kd", 3096, 0,
+  "syn20825279", 5, 9, F, "5≤Kd≤9", 4774, 0,
+  "syn20825280", 6, 8, F, "6≤Kd≤8", 29933, 0,
+  # "syn20834496", 1, 14, T, "no limit", 0, 0, ##not include these because they are in principle identical to all data
+  # "syn20834497", 1, 14, T, "no limit", 0, 1,
+  # "syn20834498", 1, 14, T, "no limit", 0, 2,
+  # "syn20834499", 1, 14, T, "no limit", 0, 3, 
+  # "syn20834500", 1, 14, T, "no limit", 0, 4, 
+  "syn20834470", 1, 8, T, "Kd≤8", 6726, 0, 
+  "syn20834471", 1, 8, T, "Kd≤8", 6726, 1,
+  "syn20834472", 1, 8, T, "Kd≤8", 6726, 2,
+  "syn20834473", 1, 8, T, "Kd≤8", 6726, 3, 
+  "syn20834474", 1, 8, T, "Kd≤8", 6726, 4, 
+  "syn20834480", 5.5, 8.5, T, "5.5≤Kd≤8.5", 16126,  0, 
+  "syn20834481", 5.5, 8.5, T, "5.5≤Kd≤8.5", 16126,  1,
+  "syn20834482", 5.5, 8.5, T, "5.5≤Kd≤8.5", 16126,  2,
+  "syn20834483", 5.5, 8.5, T, "5.5≤Kd≤8.5", 16126,  3, 
+  "syn20834484", 5.5, 8.5, T, "5.5≤Kd≤8.5", 16126,  4, 
+  "syn20834475", 5, 14, T, "5≤Kd", 3096, 0, 
+  "syn20834476", 5, 14, T, "5≤Kd", 3096, 1,
+  "syn20834477", 5, 14, T, "5≤Kd", 3096, 2,
+  "syn20834478", 5, 14, T, "5≤Kd", 3096, 3, 
+  "syn20834479", 5, 14, T, "5≤Kd", 3096, 4, 
+  "syn20834486", 5, 9, T, "5≤Kd≤9", 4774, 0,  
+  "syn20834487", 5, 9, T, "5≤Kd≤9", 4774, 1, 
+  "syn20834488", 5, 9, T, "5≤Kd≤9", 4774, 2, 
+  "syn20834489", 5, 9, T, "5≤Kd≤9", 4774, 3,  
+  "syn20834490", 5, 9, T, "5≤Kd≤9", 4774, 4,  
+  "syn20834491", 6, 8, T, "6≤Kd≤8", 29933, 0, 
+  "syn20834492", 6, 8, T, "6≤Kd≤8", 29933, 1,
+  "syn20834493", 6, 8, T, "6≤Kd≤8", 29933, 2,
+  "syn20834494", 6, 8, T, "6≤Kd≤8", 29933, 3, 
+  "syn20834495", 6, 8, T, "6≤Kd≤8", 29933, 4,
+  "syn24168003", 6.75, 7.25, F, "6.75≤Kd≤7.25", no_of_removed_675_725, 0,
+  "syn24170257", 6.75, 7.25, F, "6.75≤Kd≤7.25", no_of_removed_675_725, 1,
+  "syn24168002", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 0, 
+  "syn24168001", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 1,
+  "syn24168000", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 2, 
+  "syn24167999", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 3, 
+  "syn24167998", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 4, 
+  "syn24167997", 6.5, 7.5, F, "6.5≤Kd≤7.5", no_of_removed_65_75, 0, 
+  "syn24170256", 6.5, 7.5, F, "6.5≤Kd≤7.5", no_of_removed_65_75, 1, 
+  "syn24167996", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 0, 
+  "syn24167995", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 1, 
+  "syn24167994", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 2, 
+  "syn24167993", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 3, 
+  "syn24167992", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 4, 
+  "syn24167991", 4, 10, F, "4≤Kd≤10", no_of_removed_4_10, 0, 
+  "syn24167990", 4, 10, T, "4≤Kd≤10", no_of_removed_4_10, 0, 
+  "syn24167989", 4, 10, T, "4≤Kd≤10", no_of_removed_4_10, 1, 
+  "syn24167988", 4, 10, T, "4≤Kd≤10", no_of_removed_4_10, 2, 
+  "syn24167987", 4, 10, T, "4≤Kd≤10", no_of_removed_4_10, 3, 
+  "syn24167986", 4, 10, T, "4≤Kd≤10", no_of_removed_4_10, 4, 
+  "syn24167985", 4.5, 9.5, F, "4.5≤Kd≤9.5", no_of_removed_45_95, 0, 
+  "syn24167984", 4.5, 9.5, T, "4.5≤Kd≤9.5", no_of_removed_45_95, 0, 
+  "syn24167983", 4.5, 9.5, T, "4.5≤Kd≤9.5", no_of_removed_45_95, 1, 
+  "syn24167982", 4.5, 9.5, T, "4.5≤Kd≤9.5", no_of_removed_45_95, 2, 
+  "syn24167981", 4.5, 9.5, T, "4.5≤Kd≤9.5", no_of_removed_45_95, 3, 
+  "syn24167980", 4.5, 9.5, T, "4.5≤Kd≤9.5", no_of_removed_45_95, 4)
+
+
+data <- lapply(ids$id, function(x){
+  syn$get(x)$path %>% read_csv()
+})
+
+
+```
+
+```{r fig.height=15, fig.width=15}
+
+names(data) <- ids$id
+
+data_df <- bind_rows(data, .id = "id") %>%
+  mutate(comp = paste0(Compound_InchiKeys,"_",UniProt_Id,"_",DiscoveRx_Gene_Symbol)) %>% 
+  filter(comp %in% gold$comp)
+
+data_df <- data_df %>% 
+  left_join(ids)
+
+data_df_summary <- data_df %>% 
+  # group_by(threshold, random_iteration, is_random, Compound_InchiKeys, UniProt_Id, DiscoveRx_Gene_Symbol) %>% 
+  # ungroup() %>% 
+  left_join(gold %>% select(Compound_InchiKeys, UniProt_Id, DiscoveRx_Gene_Symbol, `pKd_[M]`)) %>% 
+  mutate(condition = glue::glue("pKd: {lower_limit} to {upper_limit} \n random control: {is_random} \n iteration: {random_iteration}"))
+
+ggplot(data_df_summary) +
+  geom_point(aes(x= `pKd_[M]`,y = `pKd_[M]_pred`, color = is_random)) +
+  facet_wrap( ~ condition)
+
+```

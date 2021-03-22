@@ -192,12 +192,15 @@ plots
 ```{r}
 dtc<- tibble::tribble(
   ~metric, ~n_val, ~group,
-"IC50",1153137, "XC50",
-"Ki",674982, "Ki",
-"Kd",76116, "Kd",
-"EC50",154434, "XC50",
-"AC50",109449, "XC50"
-) %>% dplyr::arrange(desc(n_val)) %>% 
+  "IC50", 1153137, "XC50",
+  "Ki", 674982, "Ki",
+  "Kd", 76116, "Kd",
+  "EC50", 154434, "XC50",
+  "AC50", 109449, "XC50", 
+  "Potency(%)", 2958414, "Potency(%)",
+  "Inhibition(%)", 459944, "Inhibition(%)",
+  "Activity(%)", 254147, "Activity(%)"
+)  %>% dplyr::arrange(desc(n_val)) %>% 
   mutate(group = factor(group, levels = unique(group)))
 
 p<-ggplot(dtc) + 
@@ -205,7 +208,10 @@ p<-ggplot(dtc) +
       theme_bw() +
       scale_fill_manual("Bioactivity Type", values =
                     c(wes_palette("Darjeeling1"),wes_palette("Darjeeling2"),wes_palette("IsleofDogs1"))) +
-      labs(x = "Bioactivity Category", y = "Number of Values in DrugTargetCommons") 
+      labs(x = "Bioactivity Category", y = "Number of Values in DrugTargetCommons") +
+  scale_y_continuous(labels = scales::comma)
+
+1153137+154434+109449+674982
   
 pdf("dtc_metrics.pdf",width = 7.5, height= 3.33)
 cowplot::plot_grid(p, ncol=1, align = "v")
