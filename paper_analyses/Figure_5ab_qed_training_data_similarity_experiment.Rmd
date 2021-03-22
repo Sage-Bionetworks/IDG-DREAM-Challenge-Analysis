@@ -162,6 +162,8 @@ data_df <- bind_rows(data, .id = "id") %>%
 data_df <- data_df %>% 
   left_join(ids)
 
+write_csv(data_df, "Fig5a.csv")
+
 data_df_summary <- data_df %>% 
   # group_by(threshold, random_iteration, is_random, Compound_InchiKeys, UniProt_Id, DiscoveRx_Gene_Symbol) %>% 
   # ungroup() %>% 
@@ -327,6 +329,8 @@ sim_mat_subset <- sim_mat[rownames(sim_mat) %in% gold$Compound_SMILES,] %>%
   rename(cmpd = train_compounds) %>% 
   inner_join(qed_pkd_tidy) %>% 
   filter(!is.na(pKd))
+
+write_csv(sim_mat_subset, "Fig5b.csv")
 
 # bars<- tibble::tribble(
 #   ~max, ~cutoff, ~height,
