@@ -268,7 +268,7 @@ ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of_remov
   scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#75B3CE"))
 
 
-ggsave("figure_3_rmse_r2_qed_sim.pdf",  device = cairo_pdf,
+ggsave("rmse_r2_qed_sim.pdf",  device = cairo_pdf,
               width = 9, height = 4.135, units = "in")
   
   
@@ -278,14 +278,16 @@ p2 <- ggplot(data_df_summary %>% group_by(exp_label, is_random, threshold, no_of
   labs(y= "Spearman correlation", x = "Tanimoto threshold") +
   geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
   geom_point(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
-  geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, color = is_random), position = 'dodge') +
+  geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, group = is_random), color = "black", alpha = 0.6, position = "dodge") +
+  geom_point(data = data_df_summary, aes(x = reorder(exp_label, -no_of_removed), y =spearman, group = is_random), color = "black", position = position_dodge(width = 0.9), shape = 1, alpha = 0.6) +
   scale_y_continuous(sec.axis = sec_axis(~.*2, name = "Proportion of removed pairs")) +
   scale_fill_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#E5A467")) +
   scale_color_manual(name = "Condition", values= c("Random Control"= "#BFBFBF","Dropout Test"= "#66666E","All Training Data"="#E5A467")) 
 
+p2
 
 
-ggsave("figure_3_spearman_r2_qed_sim.pdf",  device = cairo_pdf,
+ggsave("figure_5_spearman_r2_qed_sim.pdf",  device = cairo_pdf,
               width = 9, height = 4.135, units = "in")
 
 
@@ -354,7 +356,7 @@ p_2 <- ggplot(sim_mat_subset) +
 
 cowplot::plot_grid(p2, p_2, ncol = 2, align = 'h', axis = 'rl', rel_widths = c(0.5,0.33))
 
-ggsave("figure_3_sim_hist_qed.pdf",  device = cairo_pdf,
+ggsave("figure_5_sim_hist_qed.pdf",  device = cairo_pdf,
                width = 16, height = 4, units = "in")
 
 

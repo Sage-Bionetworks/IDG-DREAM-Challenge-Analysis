@@ -136,7 +136,7 @@ rmse_py <- function(gold, pred){
 qed_pkd <- syn$get("syn20690323")$path %>% 
   read_delim(delim = " ", col_names = F) 
 qed_cmpd <- syn$get("syn20690840")$path %>% 
-  read_delim(delim = "\t", ,col_names = F)
+  read_delim(delim = "\t", col_names = F)
 qed_prot <- syn$get("syn20690841")$path %>% 
   read_delim(delim = "\t", col_names = F)
 
@@ -202,14 +202,14 @@ ids <- tibble::tribble(
   "syn20834494", 6, 8, T, "6≤Kd≤8", 29933, 3, 
   "syn20834495", 6, 8, T, "6≤Kd≤8", 29933, 4,
   "syn24168003", 6.75, 7.25, F, "6.75≤Kd≤7.25", no_of_removed_675_725, 0,
-  "syn24170257", 6.75, 7.25, F, "6.75≤Kd≤7.25", no_of_removed_675_725, 1,
+  #"syn24170257", 6.75, 7.25, F, "6.75≤Kd≤7.25", no_of_removed_675_725, 1,##dupe
   "syn24168002", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 0, 
   "syn24168001", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 1,
   "syn24168000", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 2, 
   "syn24167999", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 3, 
   "syn24167998", 6.75, 7.25, T, "6.75≤Kd≤7.25", no_of_removed_675_725, 4, 
   "syn24167997", 6.5, 7.5, F, "6.5≤Kd≤7.5", no_of_removed_65_75, 0, 
-  "syn24170256", 6.5, 7.5, F, "6.5≤Kd≤7.5", no_of_removed_65_75, 1, 
+  #"syn24170256", 6.5, 7.5, F, "6.5≤Kd≤7.5", no_of_removed_65_75, 1, ##dupe
   "syn24167996", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 0, 
   "syn24167995", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 1, 
   "syn24167994", 6.5, 7.5, T, "6.5≤Kd≤7.5", no_of_removed_65_75, 2, 
@@ -273,10 +273,11 @@ data_df_summary <- data_df_summary %>% mutate(is_random_label = case_when(is_ran
 p_1 <- ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_removed) %>% summarize(mean_rmse = mean(rmse), sd_rmse = sd(rmse)))+
   geom_col(aes(x = reorder(exp_label, -no_of_removed), y = mean_rmse, fill = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
   labs(y= "RMSE", x = "pKd Threshold") +
-  theme(axis.text.x = element_text(size=10)) +
+  theme(axis.text.x = element_text(size = 8)) +
   # facet_grid(cols = vars(is_random_label), space = "free", scales = "free") +
-  geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, group = is_random_label, color = is_random_label), position = "dodge") +
+    geom_errorbar(aes(x = exp_label, y = mean_rmse, ymax = mean_rmse+sd_rmse, ymin = mean_rmse-sd_rmse, group = is_random_label), color = "black", alpha = 0.6, position = "dodge") +
   geom_line(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
+  geom_point(data = data_df_summary, aes(x = reorder(exp_label, -no_of_removed), y =rmse, group = is_random_label), color = "black", position = position_dodge(width = 0.9), shape = 1, alpha = 0.6) + 
     geom_point(aes(x = exp_label, y = no_of_removed/rmse_scal_fact, group = 1)) +
       scale_color_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E", "All Training Data"="#E5A467")) +
   scale_fill_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E", "All Training Data"="#E5A467")) +
@@ -284,12 +285,13 @@ p_1 <- ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_rem
 
 
 p_2 <-ggplot(data_df_summary %>% group_by(exp_label, is_random_label, no_of_removed) %>% summarize(mean_spearman = mean(spearman), sd_spearman = sd(spearman)))+
-  geom_col(aes(x = reorder(exp_label, -no_of_removed), y = mean_spearman, fill = is_random_label), stat = 'identity', position = position_dodge(preserve = "single")) +
+  geom_col(aes(x = reorder(exp_label, -no_of_removed), y = mean_spearman, fill = is_random_label), position = position_dodge(preserve = "single")) +
   labs(y= "Spearman correlation", x = "pKd threshold") +
   theme(axis.text.x = element_text(size = 8)) +
   # facet_grid(cols = vars(is_random_label), space = "free", scales = "free") +
-  geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, group = is_random_label, color = is_random_label), position = "dodge") +
+  geom_errorbar(aes(x = exp_label, y = mean_spearman, ymax = mean_spearman+sd_spearman, ymin = mean_spearman-sd_spearman, group = is_random_label), color = "black", alpha = 0.6, position = "dodge") +
   geom_line(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
+  geom_point(data = data_df_summary, aes(x = reorder(exp_label, -no_of_removed), y =spearman, group = is_random_label), color = "black", position = position_dodge(width = 0.9), shape = 1, alpha = 0.6) + 
   geom_point(aes(x = exp_label, y = no_of_removed/spearman_scal_fact, group = 1)) +
       scale_color_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E", "All Training Data"="#E5A467")) +
   scale_fill_manual(name = "Condition", values= c("random control"= "#BFBFBF",'pKd dropout' = "#66666E", "All Training Data"="#E5A467")) +

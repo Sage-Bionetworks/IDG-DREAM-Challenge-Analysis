@@ -14,7 +14,7 @@ Sub-challenge 2: The top-performing teams will be selected based on the bootstra
 
 In addition, participants/teams needed to submit a Dockerized model, writeup, and methods survey to qualified. Participants that could not fulfill this criteria were disqualified.
 
-Here, we are only looking all results regardles of qualification.
+Here, we are looking all results regardles of qualification.
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(challengescoring)
@@ -28,7 +28,63 @@ synapse <- import("synapseclient")
 syn <- synapse$Synapse()
 synutils <- synapse$utils
 syn$login()
-source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Challenge-Analysis/master/round_1b/evaluation_metrics_python2.py?token=AE3WNSHKS34O3U47KUCXXD25ALMY2')
+source_python('https://raw.githubusercontent.com/Sage-Bionetworks/IDG-DREAM-Challenge-Analysis/master/paper_analyses/evaluation_metrics_python2.py')
+
+finalScoring <- function(predictions,
+                         predictionColname = NA,
+                         predictionIds,
+                         goldStandard,
+                         goldStandardColname,
+                         bestPrediction,
+                         bestPredictionId,
+                         keyColumns,
+                           scoreFun = spearman,
+                           bootstrapN = 10000,
+                           seed = 98121,
+                           largerIsBetter = TRUE,
+                           verbose = FALSE,
+                           doParallel = FALSE){
+  if(is.data.frame(goldStandard)){
+    goldStandardDF<-goldStandard
+  }else{
+    if(verbose == TRUE){print("reading gold standard file")}
+    goldStandardDF <- .read_and_rename(path = goldStandard, renameColname = goldStandardColname, newName = "gold" ) ##reads the gold standard file
+  }
+  if(is.data.frame(predictions)){
+    predictionsDF<-predictions
+  }else{
+    if(verbose == TRUE){print("reading prediction file")}
+    predictionsDF <- pmap(.l = list(path = predictions, renameColname = predictionColname, newName = predictionIds), .f = .read_and_rename) %>% purrr::reduce(left_join) ## reads the prediction file
+  }
+ if(is.data.frame(bestPrediction)){
+      bestPredictionDF<-bestPrediction
+    }else{
+      if(verbose == TRUE){print("reading previous prediction file")}
+      bestPredictionDF <- .read_and_rename(path = bestPrediction, renameColname = predictionColname, newName = bestPredictionId)
+    }
+  joinedData <- dplyr::full_join(goldStandardDF, bestPredictionDF) %>%
+      dplyr::full_join(predictionsDF) %>%
+    dplyr::select(-keyColumns)
+    goldStandardMatrix <- joinedData[,1, drop = FALSE] %>% as.matrix() #make a gold standard matrix (1 column)
+    predictionsMatrix <- joinedData[,2:ncol(joinedData), drop = FALSE] %>% as.matrix() #make a prediction matrix (2 columns - current prediction, previous prediction)
+  ## bootstrap gold standard and predictions
+  bootstrapMetricMatrix <- bootstrappingMetric(goldStandardMatrix = goldStandardMatrix,
+                                               predictionsMatrix = predictionsMatrix,
+                                               scoreFun = scoreFun,
+                                               bootstrapN = bootstrapN,
+                                               seed = seed,
+                                               doParallel = doParallel)
+  if(verbose == TRUE){print("joining bootstrapped data frames")}
+  if(largerIsBetter == T){invBayes = T}
+  if(largerIsBetter == F){invBayes = F}
+  if(largerIsBetter == TRUE){ #test for previous prediction data and whether larger scores are better
+    K <- computeBayesFactor(bootstrapMetricMatrix, 1, invertBayes = invBayes) #compute bayes factor where a larger score is better
+    K[1] <- 0 ##This will be inf
+  }else if(largerIsBetter == FALSE){ #compute bayes factor where a smaller score is better
+    K <- computeBayesFactor(bootstrapMetricMatrix, 1, invertBayes = invBayes)
+  }
+  return(list("bootstrappedScores" = bootstrapMetricMatrix,"bayes" = as.vector(K)))
+}
 
 spearman_py <- function(gold, pred){
   gold_py <- gold %>% np_array()
@@ -40,6 +96,12 @@ rmse_py <- function(gold, pred){
   gold_py <- gold %>% np_array()
   pred_py <- pred %>% np_array()
   rmse(gold_py, pred_py)
+}
+
+.read_and_rename <- function(path, renameColname, newName){
+  foo <- read_csv(path)
+  names(foo)[names(foo) == renameColname] <- newName
+  foo
 }
 
 computeBayesFactorWhereRefIsNotBest <- function(bootstrapMetricMatrix,
@@ -74,6 +136,8 @@ gold <- read_csv(syn$get("syn18421225")$path)
 ```
 
 ```{r echo=FALSE}
+
+
 get_user_or_team_names <- function(id){
  name <- try(syn$getTeam(id)$name, silent = T) ##try to get the team name from id 
  if(class(name)=='try-error'){ ##if it is not a team, will return error, so then try to get user profile
@@ -172,7 +236,9 @@ tidy_res <- results_spearman$bootstrappedScores %>%
   left_join(leaderboard %>% mutate(objectId = as.character(objectId))) %>% 
   left_join(names_df) %>% 
   mutate(dq = case_when(submitterId %in% submitted_docker_and_methods ~ "",
-                   !submitterId %in% submitted_docker_and_methods ~ "dq"))
+                   !submitterId %in% submitted_docker_and_methods ~ "dq")) %>% 
+    select(bootstrappedScore, bayes, participant, dq)
+
 
 dqed <- tidy_res %>% group_by(participant, dq) %>% 
   summarize(med = median(bootstrappedScore)) %>% 
@@ -191,6 +257,7 @@ ggplot(data = tidy_res) +
   theme_bw() +
   theme(axis.text.y = element_text(size = 6, color = dqed_vec))
 
+write_csv(tidy_res, "SuppFig6a-7a.csv")
 ```
 
 ### SC2 - RMSE
@@ -236,7 +303,9 @@ tidy_res <- results_rmse$bootstrappedScores %>%
   left_join(leaderboard %>% mutate(objectId = as.character(objectId))) %>% 
   left_join(names_df) %>% 
   mutate(dq = case_when(submitterId %in% submitted_docker_and_methods ~ "",
-                   !submitterId %in% submitted_docker_and_methods ~ "dq"))
+                   !submitterId %in% submitted_docker_and_methods ~ "dq")) %>% 
+  select(bootstrappedScore, bayes, participant, dq)
+
 
 dqed <- tidy_res %>% group_by(participant, dq) %>% 
   summarize(med = median(bootstrappedScore)) %>% 
@@ -254,6 +323,8 @@ ggplot(data = tidy_res) +
   labs(x = "Team/Participant", y = "log10(Bootstrapped RMSE)") +
   theme_bw() +
   theme(axis.text.y = element_text(size = 6, color = dqed_vec))
+
+write_csv(tidy_res, "SuppFig6b-7b.csv")
 ```
 
 Now, let's reanalyze the above plots, but using the baseline as the reference for the Bayes factor calculation.
@@ -278,7 +349,9 @@ tidy_res <- results_spearman$bootstrappedScores %>%
   left_join(leaderboard %>% mutate(objectId = as.character(objectId))) %>% 
   left_join(names_df) %>% 
   mutate(dq = case_when(submitterId %in% submitted_docker_and_methods ~ "",
-                   !submitterId %in% submitted_docker_and_methods ~ "dq"))
+                   !submitterId %in% submitted_docker_and_methods ~ "dq")) %>% 
+  select(bootstrappedScore, bayes, participant, dq)
+
 
 dqed <- tidy_res %>% group_by(participant, dq) %>% 
   summarize(med = median(bootstrappedScore)) %>% 
@@ -296,6 +369,9 @@ ggplot(data = tidy_res) +
   labs(x = "Team/Participant", y = "Bootstrapped Spearman") +
   theme_bw() +
   theme(axis.text.y = element_text(size = 6, color = dqed_vec))
+
+write_csv(tidy_res, "SuppFig6c-7c.csv")
+
 ```
 
 ### SC2 - RMSE
@@ -318,11 +394,13 @@ tidy_res <- results_rmse$bootstrappedScores %>%
   left_join(leaderboard %>% mutate(objectId = as.character(objectId))) %>% 
   left_join(names_df) %>% 
   mutate(dq = case_when(submitterId %in% submitted_docker_and_methods ~ "",
-                   !submitterId %in% submitted_docker_and_methods ~ "dq"))
+                   !submitterId %in% submitted_docker_and_methods ~ "dq")) %>% 
+  select(bootstrappedScore, bayes, participant, dq)
 
 dqed <- tidy_res %>% group_by(participant, dq) %>% 
   summarize(med = median(bootstrappedScore)) %>% 
-  arrange(med)
+  arrange(med) 
+
 dqed_vec  <- ifelse(dqed$dq=="dq", "azure4", "black")
 dqed_vec <- dqed_vec[order(-dqed$med)]
 
@@ -336,6 +414,8 @@ ggplot(data = tidy_res) +
   labs(x = "Team/Participant", y = "log10(Bootstrapped RMSE)") +
   theme_bw() +
   theme(axis.text.y = element_text(size = 6, color = dqed_vec))
+
+write_csv(tidy_res, "SuppFig6d-7d.csv")
 
 ```
 

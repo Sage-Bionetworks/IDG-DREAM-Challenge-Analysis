@@ -140,6 +140,8 @@ cowplot::plot_grid(plots_sp[1][[1]] + th, plots_rm[1][[1]] + th,
                    labels = c("A","B","C","D","E","F"), ncol=2, align = "v")
 
 dev.off()
+
+write_csv(survey_df, "SuppFig22a-d.csv")
 ```
 ## Categorical scatterplots (RMSE and Spearman)
 
@@ -202,6 +204,8 @@ dtc<- tibble::tribble(
   "Activity(%)", 254147, "Activity(%)"
 )  %>% dplyr::arrange(desc(n_val)) %>% 
   mutate(group = factor(group, levels = unique(group)))
+
+write_csv(dtc, "SuppFig22e.csv")
 
 p<-ggplot(dtc) + 
       geom_bar(aes(x = group, y = n_val, fill = metric), stat = "identity", position = "stack") +

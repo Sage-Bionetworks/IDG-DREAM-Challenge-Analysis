@@ -18,7 +18,7 @@ library(tidyverse)
 library(doMC)
 doMC::registerDoMC(cores = detectCores()-1)
 
-use_python("/usr/local/bin/python2")
+use_condaenv('idg-dream', required = T)
 synapse <- import("synapseclient")
 syn <- synapse$Synapse()
 synutils <- synapse$utils
@@ -359,6 +359,8 @@ ggplot(data = ensemble_scores %>%
   labs(x = "# of Models", y = "Spearman Correlation") +
   theme(axis.text = element_text(size = 12))
 
+write_csv(ensemble_scores %>% filter(grepl("*spearman*", ensemble_model)) %>% 
+         filter(score > 0.45), "SuppFig9a.csv")
 ```
 
 
@@ -440,6 +442,8 @@ ggplot(data = ensemble_scores_pap %>%
   )
 
 library(Cairo)
+
+#Note, this was replotted by Anna, and thus looks different in the paper. 
 
 ggsave("figure_4d.pdf", 
        width = 15, height = 8.27, units = "in", device = cairo_pdf)
@@ -682,7 +686,10 @@ tidy_res <- ens_spearman_rank_bs$bootstrappedScores %>%
   mutate(iteration = stringr::str_extract(iteration, "[:digit:]+") %>% as.numeric %>% as.integer) %>% 
   left_join(best_spearman_by_team, by = c("iteration" = "rank")) %>% 
   left_join(names_df) %>% 
-  mutate(model = paste0(iteration-1," + ", participant))
+  mutate(model = paste0(iteration-1," + ", participant)) %>% 
+  select(model, iteration, bootstrappedScore, bayes)
+
+write_csv(tidy_res, "SuppFig9b.csv")
 
 ggplot(data = tidy_res) +
   geom_boxplot(aes(x = reorder(model, iteration, fun = mean) , y = bootstrappedScore,                     
